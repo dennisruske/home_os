@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/energy.db"
+}
+
+model EnergyReading {
+  id         Int   @id @default(autoincrement())
+  timestamp  Int
+  home       Float
+  grid       Float
+  car        Float
+  solar      Float
+  created_at Int   @default(0)
+
+  @@index([timestamp])
+  @@index([created_at])
+  @@map("energy_readings")
+}
+
+model EnergySettings {
+  id             Int    @id @default(autoincrement())
+  producing_price Float
+  start_date      Int
+  end_date        Int?
+  updated_at      Int   @default(0)
+  consuming_periods ConsumingPricePeriod[]
+
+  @@index([start_date])
+  @@index([end_date])
+  @@map("energy_settings")
+}
+
+model ConsumingPricePeriod {
+  id                Int   @id @default(autoincrement())
+  energy_settings_id Int
+  start_time         Int   // Minutes since midnight (0-1439)
+  end_time           Int   // Minutes since midnight (0-1439)
+  price              Float
+  energy_settings    EnergySettings @relation(fields: [energy_settings_id], references: [id], onDelete: Cascade)
+
+  @@index([energy_settings_id])
+  @@map("consuming_price_periods")
+}
+
