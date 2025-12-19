@@ -33,9 +33,21 @@ function initializeMqtt() {
     mqttClient = null;
   }
 
-  console.log('Connecting to MQTT broker at mqtt://localhost:1883...');
+  // Get MQTT URL from environment variable
+  const mqttUrl = process.env.MQTT_URL;
   
-  const client = mqtt.connect('mqtt://localhost:1883', {
+  if (!mqttUrl) {
+    throw new Error(
+      'MQTT_URL environment variable is not set. ' +
+      'Please set MQTT_URL to your MQTT broker URL (e.g., mqtt://localhost:1883 or mqtt://username:password@broker.example.com:1883)'
+    );
+  }
+
+  // Log connection attempt without exposing credentials
+  const logUrl = mqttUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+  console.log(`Connecting to MQTT broker at ${logUrl}...`);
+  
+  const client = mqtt.connect(mqttUrl, {
     reconnectPeriod: 5000, // Reconnect every 5 seconds
     connectTimeout: 10000, // 10 second connection timeout
     keepalive: 60,
