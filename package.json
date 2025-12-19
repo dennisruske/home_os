@@ -2,12 +2,15 @@
   "name": "home_os",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.9.0",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
