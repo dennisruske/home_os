@@ -28,8 +28,7 @@ jobs:
       - run: pnpm start &
       - run: pnpm exec wait-on http://localhost:3000
 
-      - run: pnpm exec playwright install
-      - run: pnpm exec playwright install-deps
+      - run: pnpm exec playwright install --with-deps
 
       - env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
