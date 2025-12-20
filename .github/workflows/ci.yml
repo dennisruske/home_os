@@ -1,5 +1,7 @@
 name: CI
 
+permissions: write-all
+
 on:
   pull_request:
   push:
