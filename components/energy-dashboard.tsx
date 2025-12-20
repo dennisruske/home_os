@@ -485,7 +485,7 @@ export function EnergyDashboard() {
       <Card>
         <CardHeader>
           <div>
-            <CardTitle>Grid Energy Consumption</CardTitle>
+            <CardTitle>Grid Energy Consumption Overview</CardTitle>
             <CardDescription>
               {displayMode === 'cost' 
                 ? 'Cost for energy consumed from the grid'
