@@ -35,7 +35,7 @@ interface GridAggregatedResponse {
 type Timeframe = 'day' | 'yesterday' | 'week' | 'month';
 type DisplayMode = 'kwh' | 'cost';
 
-interface EnergySettingsResponse {
+export interface EnergySettingsResponse {
   producing_price: number;
   consuming_periods: ConsumingPricePeriod[];
   start_date: number;
@@ -54,7 +54,7 @@ const chartConfig = {
 } satisfies Record<string, { label: string; color: string }>;
 
 // Calculate cost for consumption (positive kWh) from timestamp using energy settings
-function calculateConsumptionCost(
+export function calculateConsumptionCost(
   kwh: number,
   timestamp: number,
   settings: EnergySettingsResponse | null
