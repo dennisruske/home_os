@@ -1,5 +1,70 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Database Setup
+
+This project uses [Neon](https://neon.tech) PostgreSQL database. **You must set up the database connection before running any Prisma commands.**
+
+Follow these steps:
+
+1. Create a new database at [Neon Console](https://console.neon.tech/)
+2. Copy your connection string from the Neon dashboard
+3. Create environment files:
+   - **`.env.local`** - for Next.js (used by the application)
+   - **`.env`** - for Prisma CLI commands (required for `prisma migrate` and other Prisma commands)
+
+   **Important:** Prisma CLI reads from `.env` (not `.env.local`), so you need both files with `DATABASE_URL`.
+
+   Create both files with your connection string:
+
+```bash
+# Replace with your actual Neon connection string
+DATABASE_URL="postgresql://user:password@host:port/database?sslmode=require"
+MQTT_URL="mqtt://localhost:1883"
+```
+
+   Or create them manually:
+   - Copy `.env.local` to `.env` (if you already have `.env.local`)
+   - Or create both files with the same `DATABASE_URL` value
+
+4. Reset the database (since we're starting fresh with PostgreSQL, this clears any failed migration state):
+
+```bash
+# This will drop all tables and reset migration state
+pnpm prisma migrate reset
+```
+
+5. Apply the PostgreSQL migrations:
+
+```bash
+# For production/CI:
+pnpm prisma migrate deploy
+
+# Or for development (creates new migrations based on schema changes):
+pnpm prisma migrate dev
+```
+
+6. Generate Prisma Client (if needed):
+
+```bash
+pnpm prisma generate
+```
+
+**Troubleshooting migration errors:**
+
+If you encounter errors about failed migrations (especially when migrating from SQLite to PostgreSQL):
+
+1. The old SQLite migrations have been moved to `prisma/migrations_backup_sqlite/` - only the PostgreSQL migration remains
+2. If your database has a failed migration record, you can:
+   - **Option A (Recommended for fresh start):** Reset the database completely:
+     ```bash
+     pnpm prisma migrate reset
+     ```
+   - **Option B:** Manually resolve the failed migration state by cleaning the `_prisma_migrations` table in your database, or mark it as rolled back:
+     ```sql
+     -- Connect to your database and run:
+     DELETE FROM "_prisma_migrations" WHERE migration_name = '20251208180804_init';
+     ```
+
 ## Getting Started
 
 First, run the development server:
