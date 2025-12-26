@@ -20,6 +20,9 @@ Follow these steps:
 # Replace with your actual Neon connection string
 DATABASE_URL="postgresql://user:password@host:port/database?sslmode=require"
 MQTT_URL="mqtt://localhost:1883"
+# Optional: Customize MQTT topics (defaults shown below)
+MQTT_TOPIC_CCP="go-eController/916791/ccp"
+MQTT_TOPIC_UTC="go-eController/916791/utc"
 ```
 
    Or create them manually:
