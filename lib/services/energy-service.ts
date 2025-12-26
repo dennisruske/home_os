@@ -1,20 +1,17 @@
-import type { EnergyReading, EnergySettings, AggregatedDataPoint } from '@/types/energy';
+import type { 
+  EnergyReading, 
+  EnergySettings, 
+  AggregatedDataPoint,
+  AggregatedResponse,
+  GridAggregatedResponse
+} from '@/types/energy';
 import {
   getTimeframeBounds,
   aggregateByHour,
   aggregateByDay,
   calculateTotalEnergy,
 } from '@/lib/energy-aggregation';
-
-export interface AggregatedResponse {
-  data: AggregatedDataPoint[];
-  total: number;
-}
-
-export interface GridAggregatedResponse {
-  consumption: AggregatedResponse;
-  feedIn: AggregatedResponse;
-}
+import { getEnergyReadings, getEnergyReadingsForRange } from '@/lib/db';
 
 /**
  * Service for energy cost calculations and data aggregation.
@@ -221,6 +218,37 @@ export class EnergyService {
 
     // This should never be reached due to TypeScript, but included for safety
     throw new Error(`Unknown energy type: ${type}`);
+  }
+
+  /**
+   * Gets energy readings with pagination and optional date range filtering.
+   * Provides a service layer abstraction for data access.
+   *
+   * @param limit - Maximum number of readings to return
+   * @param offset - Number of readings to skip
+   * @param from - Optional start timestamp (Unix seconds)
+   * @param to - Optional end timestamp (Unix seconds)
+   * @returns Promise resolving to array of EnergyReading
+   */
+  async getReadings(
+    limit: number = 100,
+    offset: number = 0,
+    from?: number,
+    to?: number
+  ): Promise<EnergyReading[]> {
+    return getEnergyReadings(limit, offset, from, to);
+  }
+
+  /**
+   * Gets energy readings for a specific time range.
+   * Provides a service layer abstraction for data access.
+   *
+   * @param from - Start timestamp (Unix seconds)
+   * @param to - End timestamp (Unix seconds)
+   * @returns Promise resolving to array of EnergyReading
+   */
+  async getReadingsForRange(from: number, to: number): Promise<EnergyReading[]> {
+    return getEnergyReadingsForRange(from, to);
   }
 }
 

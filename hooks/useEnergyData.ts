@@ -1,23 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { AggregatedDataPoint } from '@/types/energy';
-
-export interface AggregatedResponse {
-  data: AggregatedDataPoint[];
-  total: number;
-}
-
-export interface GridAggregatedResponse {
-  consumption: {
-    data: AggregatedDataPoint[];
-    total: number;
-  };
-  feedIn: {
-    data: AggregatedDataPoint[];
-    total: number;
-  };
-}
+import type { 
+  AggregatedDataPoint,
+  AggregatedResponse,
+  GridAggregatedResponse
+} from '@/types/energy';
 
 export type Timeframe = 'day' | 'yesterday' | 'week' | 'month';
 

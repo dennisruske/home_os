@@ -58,10 +58,14 @@ export class MqttService {
     }
   }
 
-  connect(): MqttClient {
+  /**
+   * Ensures MQTT connection is established. Called automatically when needed.
+   * This method is idempotent - it will only connect if not already connected.
+   */
+  private ensureConnected(): void {
     // Check if client exists and is connected
     if (this.client && this.client.connected) {
-      return this.client;
+      return;
     }
 
     // If client exists but is disconnected, clean it up
@@ -142,7 +146,16 @@ export class MqttService {
     });
 
     this.client = client;
-    return client;
+  }
+
+  /**
+   * Explicitly connect to MQTT broker. 
+   * Note: Connection is now automatic on first use, but this method is kept for explicit control.
+   * @deprecated Connection happens automatically - this method is kept for backward compatibility
+   */
+  connect(): MqttClient {
+    this.ensureConnected();
+    return this.client!;
   }
 
   private handleMessage(topic: string, message: Buffer): void {
@@ -220,6 +233,8 @@ export class MqttService {
   }
 
   getCurrentData(): EnergyData {
+    // Auto-connect on first access to ensure we're receiving data
+    this.ensureConnected();
     return { ...this.currentEnergyData };
   }
 

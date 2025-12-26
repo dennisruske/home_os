@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnergyReadingsForRange } from '@/lib/db';
 import { getEnergyService } from '@/lib/services/energy-service';
 
 export async function GET(request: NextRequest) {
@@ -31,11 +30,11 @@ export async function GET(request: NextRequest) {
       endTimestamp = bounds.end;
     }
 
-    // Fetch readings for the time range
-    const readings = await getEnergyReadingsForRange(startTimestamp, endTimestamp);
+    // Fetch readings for the time range via service layer
+    const energyService = getEnergyService();
+    const readings = await energyService.getReadingsForRange(startTimestamp, endTimestamp);
 
     // Use EnergyService to aggregate data
-    const energyService = getEnergyService();
     const result = energyService.aggregateEnergyData(readings, timeframe, 'grid');
 
     return NextResponse.json(result);

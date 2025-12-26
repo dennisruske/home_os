@@ -57,3 +57,13 @@ export interface AggregatedDataPoint {
   timestamp: number;
 }
 
+export interface AggregatedResponse {
+  data: AggregatedDataPoint[];
+  total: number;
+}
+
+export interface GridAggregatedResponse {
+  consumption: AggregatedResponse;
+  feedIn: AggregatedResponse;
+}
+

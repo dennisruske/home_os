@@ -168,50 +168,6 @@ export async function getEnergySettings(timestamp?: number): Promise<EnergySetti
   }
 }
 
-/**
- * @deprecated Use EnergySettingsService.calculatePriceAt instead.
- * This function is kept for backward compatibility but will be removed in a future version.
- */
-export async function getConsumingPriceAt(
-  timestamp: number,
-  timeOfDayMinutes?: number
-): Promise<number | null> {
-  try {
-    const settings = await getEnergySettings(timestamp);
-    if (!settings || !settings.consuming_periods || settings.consuming_periods.length === 0) {
-      return null;
-    }
-
-    // If timeOfDayMinutes not provided, calculate from timestamp
-    let minutes: number;
-    if (timeOfDayMinutes !== undefined) {
-      minutes = timeOfDayMinutes;
-    } else {
-      const date = new Date(timestamp * 1000);
-      minutes = date.getHours() * 60 + date.getMinutes();
-    }
-
-    // Find the period that contains this time
-    for (const period of settings.consuming_periods) {
-      if (period.start_time <= minutes && minutes < period.end_time) {
-        return period.price;
-      }
-      // Handle wrap-around (e.g., 22:00 to 06:00)
-      if (period.start_time > period.end_time) {
-        if (minutes >= period.start_time || minutes < period.end_time) {
-          return period.price;
-        }
-      }
-    }
-
-    // If no period matches, return the first period's price as fallback
-    return settings.consuming_periods[0]?.price ?? null;
-  } catch (error) {
-    console.error('Error getting consuming price at time:', error);
-    throw error;
-  }
-}
-
 export async function getEnergySettingsAt(timestamp: number): Promise<EnergySettings | null> {
   return getEnergySettings(timestamp);
 }
@@ -251,85 +207,42 @@ export async function getAllEnergySettings(): Promise<EnergySettings[]> {
   }
 }
 
-export async function updateEnergySettings(
+/**
+ * Updates the end_date of an existing energy settings record.
+ * Pure data access function - no business logic.
+ */
+export async function updateEnergySettingsEndDate(
+  settingsId: number,
+  endDate: number
+): Promise<void> {
+  try {
+    await prisma.energySettings.update({
+      where: { id: settingsId },
+      data: { end_date: endDate },
+    });
+  } catch (error) {
+    console.error('Error updating energy settings end date:', error);
+    throw error;
+  }
+}
+
+/**
+ * Creates a new energy settings record with consuming periods.
+ * Pure data access function - no business logic.
+ */
+export async function createEnergySettings(
   producingPrice: number,
   consumingPeriods: ConsumingPricePeriod[],
-  startDate?: number
+  startDate: number,
+  endDate: number | null = null
 ): Promise<EnergySettings> {
   try {
-    console.log('updateEnergySettings called with:', { producingPrice, consumingPeriods, startDate });
-    
-    // Verify Prisma client is properly initialized
-    if (!prisma || !prisma.energySettings) {
-      console.error('Prisma client not properly initialized');
-      throw new Error('Database connection error. Please restart the server.');
-    }
-    
     const now = Math.floor(Date.now() / 1000);
-    const effectiveStartDate = startDate ?? now;
-
-    // Validate consuming periods
-    if (!consumingPeriods || consumingPeriods.length === 0) {
-      throw new Error('At least one consuming price period is required');
-    }
-
-    // Validate time ranges (0-1439 minutes)
-    for (const period of consumingPeriods) {
-      if (period.start_time < 0 || period.start_time > 1439 || 
-          period.end_time < 0 || period.end_time > 1439) {
-        throw new Error('Time values must be between 0 and 1439 (minutes since midnight)');
-      }
-      if (period.price < 0) {
-        throw new Error('Prices must be non-negative');
-      }
-    }
-
-    // Find the currently active settings (if any)
-    const activeSettings = await prisma.energySettings.findFirst({
-      where: {
-        AND: [
-          { start_date: { lte: now } },
-          {
-            OR: [
-              { end_date: null },
-              { end_date: { gt: now } },
-            ],
-          },
-        ],
-      },
-      orderBy: {
-        start_date: 'desc',
-      },
-    });
-
-    // If there's an active setting and the new start date is in the future,
-    // end the current period at the new start date
-    if (activeSettings && effectiveStartDate > now) {
-      console.log('Ending current active settings period at:', effectiveStartDate);
-      await prisma.energySettings.update({
-        where: { id: activeSettings.id },
-        data: {
-          end_date: effectiveStartDate - 1, // End one second before new period starts
-        },
-      });
-    } else if (activeSettings && effectiveStartDate <= now) {
-      // If updating for current time, end the current period now
-      console.log('Ending current active settings period now');
-      await prisma.energySettings.update({
-        where: { id: activeSettings.id },
-        data: {
-          end_date: now,
-        },
-      });
-    }
-
-    // Create new settings record with consuming periods
-    console.log('Creating new settings record with start_date:', effectiveStartDate);
     const created = await prisma.energySettings.create({
       data: {
         producing_price: producingPrice,
-        start_date: effectiveStartDate,
-        end_date: null, // Currently active
+        start_date: startDate,
+        end_date: endDate,
         updated_at: now,
         consuming_periods: {
           create: consumingPeriods.map((period) => ({
@@ -348,7 +261,6 @@ export async function updateEnergySettings(
       },
     });
 
-    console.log('Settings created successfully:', created);
     return {
       id: created.id,
       producing_price: created.producing_price,
@@ -364,9 +276,75 @@ export async function updateEnergySettings(
       })),
     };
   } catch (error) {
-    console.error('Error updating energy settings:', error);
-    const errorDetails = error instanceof Error ? { message: error.message, stack: error.stack } : error;
-    console.error('Error details:', errorDetails);
+    console.error('Error creating energy settings:', error);
     throw error;
   }
+}
+
+/**
+ * Finds the currently active energy settings at a given timestamp.
+ * Pure data access function - no business logic.
+ */
+export async function findActiveEnergySettings(timestamp: number): Promise<EnergySettings | null> {
+  try {
+    const settings = await prisma.energySettings.findFirst({
+      where: {
+        AND: [
+          { start_date: { lte: timestamp } },
+          {
+            OR: [
+              { end_date: null },
+              { end_date: { gt: timestamp } },
+            ],
+          },
+        ],
+      },
+      include: {
+        consuming_periods: {
+          orderBy: {
+            start_time: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        start_date: 'desc',
+      },
+    });
+
+    if (!settings) {
+      return null;
+    }
+
+    return {
+      id: settings.id,
+      producing_price: settings.producing_price,
+      start_date: settings.start_date,
+      end_date: settings.end_date,
+      updated_at: settings.updated_at,
+      consuming_periods: settings.consuming_periods.map((period) => ({
+        id: period.id,
+        energy_settings_id: period.energy_settings_id,
+        start_time: period.start_time,
+        end_time: period.end_time,
+        price: period.price,
+      })),
+    };
+  } catch (error) {
+    console.error('Error finding active energy settings:', error);
+    throw error;
+  }
+}
+
+/**
+ * @deprecated Use EnergySettingsService.updateSettings instead.
+ * This function is kept for backward compatibility but will be removed in a future version.
+ */
+export async function updateEnergySettings(
+  producingPrice: number,
+  consumingPeriods: ConsumingPricePeriod[],
+  startDate?: number
+): Promise<EnergySettings> {
+  const { getEnergySettingsService } = await import('@/lib/services/energy-settings-service');
+  const service = getEnergySettingsService();
+  return service.updateSettings(producingPrice, consumingPeriods, startDate);
 }

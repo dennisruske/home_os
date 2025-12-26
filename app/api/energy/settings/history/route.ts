@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAllEnergySettings } from '@/lib/db';
+import { getEnergySettingsService } from '@/lib/services/energy-settings-service';
 
 export async function GET() {
   try {
-    const allSettings = await getAllEnergySettings();
+    const service = getEnergySettingsService();
+    const allSettings = await service.getAllSettings();
     
     return NextResponse.json({
       settings: allSettings,

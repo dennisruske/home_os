@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useEnergyData } from '@/hooks/useEnergyData';
 import { useEnergySettings } from '@/hooks/useEnergySettings';
+import { useEnergyCostCalculations } from '@/hooks/useEnergyCostCalculations';
 import { getEnergyService } from '@/lib/services/energy-service';
 import { TimeframeSelector, getTimeframeLabel, type Timeframe, type DisplayMode } from './energy-dashboard/TimeframeSelector';
 import { EnergyCard } from './energy-dashboard/EnergyCard';
@@ -21,101 +22,25 @@ export function EnergyDashboard() {
   // Get energy service instance for cost calculations
   const energyService = getEnergyService();
 
-  // Calculate costs for consumption chart data
-  const consumptionChartData = useMemo(() => {
-    return consumption.data.map((point) => {
-      const value = displayMode === 'cost' 
-        ? energyService.calculateConsumptionCost(
-            point.kwh,
-            point.timestamp,
-            settings
-          )
-        : point.kwh;
-      return {
-        ...point,
-        value,
-      };
-    });
-  }, [consumption.data, displayMode, settings, energyService]);
-
-  // Calculate consumption total value: sum costs of all data points in cost mode, otherwise use total kWh
-  const consumptionTotalValue = useMemo(() => {
-    return displayMode === 'cost'
-      ? consumptionChartData.reduce((sum, point) => sum + point.value, 0)
-      : consumption.total;
-  }, [displayMode, consumptionChartData, consumption.total]);
-
-  // Calculate costs for feed-in chart data
-  const feedInChartData = useMemo(() => {
-    return feedIn.data.map((point) => {
-      const value = displayMode === 'cost' 
-        ? energyService.calculateFeedInCost(
-            point.kwh,
-            settings
-          )
-        : point.kwh;
-      return {
-        ...point,
-        value,
-      };
-    });
-  }, [feedIn.data, displayMode, settings, energyService]);
-
-  // Calculate feed-in total value: sum costs of all data points in cost mode, otherwise use total kWh
-  const feedInTotalValue = useMemo(() => {
-    return displayMode === 'cost'
-      ? feedInChartData.reduce((sum, point) => sum + point.value, 0)
-      : feedIn.total;
-  }, [displayMode, feedInChartData, feedIn.total]);
-
-  // Calculate car energy costs if in cost mode
-  const carChartData = useMemo(() => {
-    return car.data.map((point) => {
-      // Car consumption is always positive, so use consuming price
-      const value = displayMode === 'cost' 
-        ? energyService.calculateConsumptionCost(
-            point.kwh,
-            point.timestamp,
-            settings
-          )
-        : point.kwh;
-      return {
-        ...point,
-        value,
-      };
-    });
-  }, [car.data, displayMode, settings, energyService]);
-
-  // Calculate car total value: sum costs of all data points in cost mode, otherwise use total kWh
-  const carTotalValue = useMemo(() => {
-    return displayMode === 'cost'
-      ? carChartData.reduce((sum, point) => sum + point.value, 0)
-      : car.total;
-  }, [displayMode, carChartData, car.total]);
-
-  // Calculate solar energy costs if in cost mode
-  // Solar production is always positive, so use producing_price
-  const solarChartData = useMemo(() => {
-    return solar.data.map((point) => {
-      const value = displayMode === 'cost' 
-        ? energyService.calculateFeedInCost(
-            point.kwh,
-            settings
-          )
-        : point.kwh;
-      return {
-        ...point,
-        value,
-      };
-    });
-  }, [solar.data, displayMode, settings, energyService]);
-
-  // Calculate solar total value: sum costs of all data points in cost mode, otherwise use total kWh
-  const solarTotalValue = useMemo(() => {
-    return displayMode === 'cost'
-      ? solarChartData.reduce((sum, point) => sum + point.value, 0)
-      : solar.total;
-  }, [displayMode, solarChartData, solar.total]);
+  // Transform energy data and calculate costs/totals
+  const {
+    consumptionChartData,
+    consumptionTotalValue,
+    feedInChartData,
+    feedInTotalValue,
+    carChartData,
+    carTotalValue,
+    solarChartData,
+    solarTotalValue,
+  } = useEnergyCostCalculations(
+    consumption,
+    feedIn,
+    car,
+    solar,
+    displayMode,
+    settings,
+    energyService
+  );
 
   const timeframeLabel = getTimeframeLabel(timeframe);
 

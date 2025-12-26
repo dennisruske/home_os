@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useEnergyData } from '@/hooks/useEnergyData';
-import type { AggregatedResponse, GridAggregatedResponse } from '@/hooks/useEnergyData';
+import type { AggregatedResponse, GridAggregatedResponse } from '@/types/energy';
 
 // Mock fetch globally
 global.fetch = vi.fn();
