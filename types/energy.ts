@@ -41,3 +41,9 @@ export interface EnergySettingsHistory {
   current: EnergySettings | null;
 }
 
+export interface AggregatedDataPoint {
+  label: string;
+  kwh: number;
+  timestamp: number;
+}
+
