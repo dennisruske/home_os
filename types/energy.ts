@@ -14,6 +14,16 @@ export interface EnergyHistoryEntry {
   solar: number;
 }
 
+export interface EnergyReading {
+  id: number;
+  timestamp: number;
+  home: number;
+  grid: number;
+  car: number;
+  solar: number;
+  created_at: number;
+}
+
 export interface EnergyMessage {
   type: 'ccp' | 'utc';
   data: number[] | number;

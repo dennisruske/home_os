@@ -1,5 +1,4 @@
-import type { EnergyReading } from '@/lib/db';
-import type { EnergySettings, AggregatedDataPoint } from '@/types/energy';
+import type { EnergyReading, EnergySettings, AggregatedDataPoint } from '@/types/energy';
 import {
   getTimeframeBounds,
   aggregateByHour,

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EnergyService, getEnergyService } from '@/lib/services/energy-service';
-import type { EnergyReading } from '@/lib/db';
-import type { EnergySettings } from '@/types/energy';
+import type { EnergyReading, EnergySettings } from '@/types/energy';
 
 describe('EnergyService', () => {
   let service: EnergyService;

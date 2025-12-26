@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import type { EnergyData, EnergySettings, ConsumingPricePeriod } from '@/types/energy';
+import type { EnergyData, EnergySettings, ConsumingPricePeriod, EnergyReading } from '@/types/energy';
 
 // Prisma Client singleton
 const globalForPrisma = globalThis as unknown as {
@@ -13,16 +13,6 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-
-export interface EnergyReading {
-  id: number;
-  timestamp: number;
-  home: number;
-  grid: number;
-  car: number;
-  solar: number;
-  created_at: number;
-}
 
 export async function insertEnergyReading(data: EnergyData): Promise<void> {
   if (!data.timestamp) {
