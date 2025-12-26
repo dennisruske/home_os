@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/chart';
 import { Bar, BarChart, XAxis, YAxis, Cell } from 'recharts';
 import type { EnergySettings, ConsumingPricePeriod } from '@/types/energy';
+import { getEnergyService } from '@/lib/services/energy-service';
 
 interface AggregatedDataPoint {
   label: string;
@@ -53,48 +54,21 @@ const chartConfig = {
   },
 } satisfies Record<string, { label: string; color: string }>;
 
-// Calculate cost for consumption (positive kWh) from timestamp using energy settings
-export function calculateConsumptionCost(
-  kwh: number,
-  timestamp: number,
+// Helper function to convert EnergySettingsResponse to EnergySettings
+function convertToEnergySettings(
   settings: EnergySettingsResponse | null
-): number {
-  if (!settings || kwh <= 0) {
-    return 0;
+): EnergySettings | null {
+  if (!settings) {
+    return null;
   }
-
-  // For positive kWh (consuming), find the appropriate price based on time of day
-  const date = new Date(timestamp * 1000);
-  const minutes = date.getHours() * 60 + date.getMinutes();
-
-  // Find the period that contains this time
-  for (const period of settings.consuming_periods) {
-    if (period.start_time <= minutes && minutes < period.end_time) {
-      return kwh * period.price;
-    }
-    // Handle wrap-around (e.g., 22:00 to 06:00)
-    if (period.start_time > period.end_time) {
-      if (minutes >= period.start_time || minutes < period.end_time) {
-        return kwh * period.price;
-      }
-    }
-  }
-
-  // If no period matches, use the first period's price as fallback
-  const fallbackPrice = settings.consuming_periods[0]?.price ?? 0;
-  return kwh * fallbackPrice;
-}
-
-// Calculate cost for feed-in (positive kWh representing energy fed back) using producing price
-function calculateFeedInCost(
-  kwh: number,
-  settings: EnergySettingsResponse | null
-): number {
-  if (!settings || kwh <= 0) {
-    return 0;
-  }
-  // Feed-in always uses producing_price
-  return kwh * settings.producing_price;
+  return {
+    id: 0, // Not used for cost calculations
+    producing_price: settings.producing_price,
+    start_date: settings.start_date,
+    end_date: settings.end_date ?? null,
+    updated_at: settings.start_date,
+    consuming_periods: settings.consuming_periods,
+  };
 }
 
 export function EnergyDashboard() {
@@ -248,10 +222,17 @@ export function EnergyDashboard() {
     }
   };
 
+  // Get energy service instance
+  const energyService = getEnergyService();
+
   // Calculate costs for consumption chart data
   const consumptionChartData = consumptionData.map((point) => {
     const value = displayMode === 'cost' 
-      ? calculateConsumptionCost(point.kwh, point.timestamp, energySettings)
+      ? energyService.calculateConsumptionCost(
+          point.kwh,
+          point.timestamp,
+          convertToEnergySettings(energySettings)
+        )
       : point.kwh;
     return {
       ...point,
@@ -267,7 +248,10 @@ export function EnergyDashboard() {
   // Calculate costs for feed-in chart data
   const feedInChartData = feedInData.map((point) => {
     const value = displayMode === 'cost' 
-      ? calculateFeedInCost(point.kwh, energySettings)
+      ? energyService.calculateFeedInCost(
+          point.kwh,
+          convertToEnergySettings(energySettings)
+        )
       : point.kwh;
     return {
       ...point,
@@ -284,7 +268,11 @@ export function EnergyDashboard() {
   const carChartData = carData.map((point) => {
     // Car consumption is always positive, so use consuming price
     const value = displayMode === 'cost' 
-      ? calculateConsumptionCost(point.kwh, point.timestamp, energySettings)
+      ? energyService.calculateConsumptionCost(
+          point.kwh,
+          point.timestamp,
+          convertToEnergySettings(energySettings)
+        )
       : point.kwh;
     return {
       ...point,
@@ -301,7 +289,10 @@ export function EnergyDashboard() {
   // Solar production is always positive, so use producing_price
   const solarChartData = solarData.map((point) => {
     const value = displayMode === 'cost' 
-      ? point.kwh * (energySettings?.producing_price ?? 0)
+      ? energyService.calculateFeedInCost(
+          point.kwh,
+          convertToEnergySettings(energySettings)
+        )
       : point.kwh;
     return {
       ...point,

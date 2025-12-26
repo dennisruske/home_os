@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnergyReadingsForRange } from '@/lib/db';
-import {
-  getTimeframeBounds,
-  aggregateByHour,
-  aggregateByDay,
-  calculateTotalEnergy,
-} from '@/lib/energy-aggregation';
-import type { AggregatedDataPoint } from '@/types/energy';
+import { getEnergyService } from '@/lib/services/energy-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,45 +9,36 @@ export async function GET(request: NextRequest) {
     const customStart = searchParams.get('start');
     const customEnd = searchParams.get('end');
 
-    let start: number;
-    let end: number;
+    let start: number | undefined;
+    let end: number | undefined;
 
     if (customStart && customEnd) {
       start = parseInt(customStart, 10);
       end = parseInt(customEnd, 10);
+    }
+
+    // Determine time bounds
+    let startTimestamp: number;
+    let endTimestamp: number;
+
+    if (start !== undefined && end !== undefined) {
+      startTimestamp = start;
+      endTimestamp = end;
     } else {
+      const { getTimeframeBounds } = await import('@/lib/energy-aggregation');
       const bounds = getTimeframeBounds(timeframe);
-      start = bounds.start;
-      end = bounds.end;
+      startTimestamp = bounds.start;
+      endTimestamp = bounds.end;
     }
 
     // Fetch readings for the time range
-    const readings = await getEnergyReadingsForRange(start, end);
+    const readings = await getEnergyReadingsForRange(startTimestamp, endTimestamp);
 
-    if (readings.length === 0) {
-      return NextResponse.json({ data: [], total: 0 });
-    }
+    // Use EnergyService to aggregate data
+    const energyService = getEnergyService();
+    const result = energyService.aggregateEnergyData(readings, timeframe, 'solar');
 
-    // Map to solar readings
-    const solarReadings = readings.map((r) => ({
-      timestamp: r.timestamp,
-      solar: r.solar,
-    }));
-
-    // Calculate total energy production using trapezoidal integration (only positive)
-    const total = calculateTotalEnergy(solarReadings, (r) => r.solar, (solar) => solar > 0);
-
-    // Aggregate based on timeframe
-    let aggregated: AggregatedDataPoint[];
-
-    if (timeframe === 'day' || timeframe === 'yesterday') {
-      aggregated = aggregateByHour(solarReadings, (r) => r.solar, (solar) => solar > 0);
-    } else {
-      // week or month - aggregate by day
-      aggregated = aggregateByDay(solarReadings, (r) => r.solar, (solar) => solar > 0);
-    }
-
-    return NextResponse.json({ data: aggregated, total });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error aggregating solar energy data:', error);
     return NextResponse.json(

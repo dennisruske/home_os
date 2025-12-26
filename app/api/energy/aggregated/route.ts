@@ -1,46 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnergyReadingsForRange } from '@/lib/db';
-import {
-  getTimeframeBounds,
-  aggregateByHour,
-  aggregateByDay,
-  calculateTotalEnergy,
-} from '@/lib/energy-aggregation';
-import type { AggregatedDataPoint } from '@/types/energy';
-
-function aggregateByHourConsumption(
-  readings: Array<{ timestamp: number; grid: number }>
-): AggregatedDataPoint[] {
-  return aggregateByHour(readings, (r) => r.grid, (grid) => grid >= 0);
-}
-
-function aggregateByHourFeedIn(
-  readings: Array<{ timestamp: number; grid: number }>
-): AggregatedDataPoint[] {
-  // For feed-in, we process negative values but convert them to positive for display
-  const feedInReadings = readings.map((r) => ({
-    timestamp: r.timestamp,
-    grid: r.grid < 0 ? Math.abs(r.grid) : 0, // Convert negative to positive, ignore positive
-  }));
-  return aggregateByHour(feedInReadings, (r) => r.grid, (grid) => grid > 0);
-}
-
-function aggregateByDayConsumption(
-  readings: Array<{ timestamp: number; grid: number }>
-): AggregatedDataPoint[] {
-  return aggregateByDay(readings, (r) => r.grid, (grid) => grid >= 0);
-}
-
-function aggregateByDayFeedIn(
-  readings: Array<{ timestamp: number; grid: number }>
-): AggregatedDataPoint[] {
-  // For feed-in, we process negative values but convert them to positive for display
-  const feedInReadings = readings.map((r) => ({
-    timestamp: r.timestamp,
-    grid: r.grid < 0 ? Math.abs(r.grid) : 0, // Convert negative to positive, ignore positive
-  }));
-  return aggregateByDay(feedInReadings, (r) => r.grid, (grid) => grid > 0);
-}
+import { getEnergyService } from '@/lib/services/energy-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,61 +9,36 @@ export async function GET(request: NextRequest) {
     const customStart = searchParams.get('start');
     const customEnd = searchParams.get('end');
 
-    let start: number;
-    let end: number;
+    let start: number | undefined;
+    let end: number | undefined;
 
     if (customStart && customEnd) {
       start = parseInt(customStart, 10);
       end = parseInt(customEnd, 10);
+    }
+
+    // Determine time bounds
+    let startTimestamp: number;
+    let endTimestamp: number;
+
+    if (start !== undefined && end !== undefined) {
+      startTimestamp = start;
+      endTimestamp = end;
     } else {
+      const { getTimeframeBounds } = await import('@/lib/energy-aggregation');
       const bounds = getTimeframeBounds(timeframe);
-      start = bounds.start;
-      end = bounds.end;
+      startTimestamp = bounds.start;
+      endTimestamp = bounds.end;
     }
 
     // Fetch readings for the time range
-    const readings = await getEnergyReadingsForRange(start, end);
+    const readings = await getEnergyReadingsForRange(startTimestamp, endTimestamp);
 
-    if (readings.length === 0) {
-      return NextResponse.json({
-        consumption: { data: [], total: 0 },
-        feedIn: { data: [], total: 0 },
-      });
-    }
+    // Use EnergyService to aggregate data
+    const energyService = getEnergyService();
+    const result = energyService.aggregateEnergyData(readings, timeframe, 'grid');
 
-    // Prepare feed-in readings (convert negative to positive, ignore positive)
-    const feedInReadings = readings.map((r) => ({
-      timestamp: r.timestamp,
-      grid: r.grid < 0 ? Math.abs(r.grid) : 0,
-    }));
-
-    // Calculate totals: consumption (positive only) and feed-in (absolute of negative)
-    const consumptionTotal = calculateTotalEnergy(readings, (r) => r.grid, (grid) => grid >= 0);
-    const feedInTotal = calculateTotalEnergy(feedInReadings, (r) => r.grid, (grid) => grid > 0);
-
-    // Aggregate based on timeframe
-    let consumptionAggregated: AggregatedDataPoint[];
-    let feedInAggregated: AggregatedDataPoint[];
-
-    if (timeframe === 'day' || timeframe === 'yesterday') {
-      consumptionAggregated = aggregateByHourConsumption(readings);
-      feedInAggregated = aggregateByHourFeedIn(readings);
-    } else {
-      // week or month - aggregate by day
-      consumptionAggregated = aggregateByDayConsumption(readings);
-      feedInAggregated = aggregateByDayFeedIn(readings);
-    }
-
-    return NextResponse.json({
-      consumption: {
-        data: consumptionAggregated,
-        total: consumptionTotal,
-      },
-      feedIn: {
-        data: feedInAggregated,
-        total: feedInTotal,
-      },
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error aggregating energy data:', error);
     return NextResponse.json(

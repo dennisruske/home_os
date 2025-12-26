@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateConsumptionCost, type EnergySettingsResponse } from '@/components/energy-dashboard';
-import type { ConsumingPricePeriod } from '@/types/energy';
+import { getEnergyService } from '@/lib/services/energy-service';
+import type { ConsumingPricePeriod, EnergySettings } from '@/types/energy';
 
 // Helper function to create a timestamp from hours and minutes
 function createTimestamp(hours: number, minutes: number = 0): number {
@@ -10,13 +10,25 @@ function createTimestamp(hours: number, minutes: number = 0): number {
 }
 
 // Helper function to create a mock settings object
-function createSettings(periods: ConsumingPricePeriod[], producingPrice: number = 0.1): EnergySettingsResponse {
+function createSettings(periods: ConsumingPricePeriod[], producingPrice: number = 0.1): EnergySettings {
   return {
+    id: 0,
     producing_price: producingPrice,
     consuming_periods: periods,
     start_date: 0,
     end_date: null,
+    updated_at: 0,
   };
+}
+
+// Helper function to call calculateConsumptionCost via service
+function calculateConsumptionCost(
+  kwh: number,
+  timestamp: number,
+  settings: EnergySettings | null
+): number {
+  const energyService = getEnergyService();
+  return energyService.calculateConsumptionCost(kwh, timestamp, settings);
 }
 
 // Helper function to create a period in minutes since midnight

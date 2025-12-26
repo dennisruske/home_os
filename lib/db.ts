@@ -178,6 +178,10 @@ export async function getEnergySettings(timestamp?: number): Promise<EnergySetti
   }
 }
 
+/**
+ * @deprecated Use EnergySettingsService.calculatePriceAt instead.
+ * This function is kept for backward compatibility but will be removed in a future version.
+ */
 export async function getConsumingPriceAt(
   timestamp: number,
   timeOfDayMinutes?: number
