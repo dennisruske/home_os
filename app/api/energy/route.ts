@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server';
-import { getMqttService } from '@/lib/services/mqtt-service';
-import { getEnergyService } from '@/lib/services/energy-service';
+import { createServiceContainer } from '@/lib/services/service-container';
 
 export async function GET(request: NextRequest) {
-  // Get MQTT service (connection happens automatically on first use)
-  const mqttService = getMqttService();
+  const services = createServiceContainer();
+  const { mqttService, energyService } = services;
 
   // Create a readable stream for SSE
   const stream = new ReadableStream({
@@ -15,7 +14,6 @@ export async function GET(request: NextRequest) {
       const sendData = async () => {
         try {
           // Fetch recent history from database (last 100 entries)
-          const energyService = getEnergyService();
           const history = await energyService.getReadings(100, 0);
           const currentData = mqttService.getCurrentData();
           const data = JSON.stringify({

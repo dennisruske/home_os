@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getEnergyService } from '@/lib/services/energy-service';
+import { createClientEnergyService } from '@/lib/services/energy-service';
 import type { ConsumingPricePeriod, EnergySettings } from '@/types/energy';
 
 // Helper function to create a timestamp from hours and minutes
@@ -27,7 +27,7 @@ function calculateConsumptionCost(
   timestamp: number,
   settings: EnergySettings | null
 ): number {
-  const energyService = getEnergyService();
+  const energyService = createClientEnergyService();
   return energyService.calculateConsumptionCost(kwh, timestamp, settings);
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnergySettingsService } from '@/lib/services/energy-settings-service';
+import { createServiceContainer } from '@/lib/services/service-container';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const service = getEnergySettingsService();
-    const settings = await service.getActiveSettings(timestamp);
+    const { energySettingsService } = createServiceContainer();
+    const settings = await energySettingsService.getActiveSettings(timestamp);
     
     if (!settings) {
       return NextResponse.json(
@@ -120,8 +120,8 @@ export async function PUT(request: NextRequest) {
     }
 
     console.log('Calling updateSettings with:', { producing_price, consuming_periods, start_date: effectiveStartDate });
-    const service = getEnergySettingsService();
-    const settings = await service.updateSettings(producing_price, consuming_periods, effectiveStartDate);
+    const { energySettingsService } = createServiceContainer();
+    const settings = await energySettingsService.updateSettings(producing_price, consuming_periods, effectiveStartDate);
     console.log('Settings updated successfully:', settings);
 
     return NextResponse.json({

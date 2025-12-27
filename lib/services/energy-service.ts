@@ -11,13 +11,14 @@ import {
   aggregateByDay,
   calculateTotalEnergy,
 } from '@/lib/energy-aggregation';
-import { getEnergyReadings, getEnergyReadingsForRange } from '@/lib/db';
+import type { EnergyRepository } from '@/lib/repositories/energy-repository';
 
 /**
  * Service for energy cost calculations and data aggregation.
  * Provides business logic for calculating energy costs and aggregating energy data.
  */
 export class EnergyService {
+  constructor(private repository?: EnergyRepository) {}
   /**
    * Calculates the cost for energy consumption based on kWh, timestamp, and settings.
    * Uses time-of-day pricing periods to determine the appropriate price.
@@ -229,6 +230,7 @@ export class EnergyService {
    * @param from - Optional start timestamp (Unix seconds)
    * @param to - Optional end timestamp (Unix seconds)
    * @returns Promise resolving to array of EnergyReading
+   * @throws Error if repository is not provided
    */
   async getReadings(
     limit: number = 100,
@@ -236,7 +238,10 @@ export class EnergyService {
     from?: number,
     to?: number
   ): Promise<EnergyReading[]> {
-    return getEnergyReadings(limit, offset, from, to);
+    if (!this.repository) {
+      throw new Error('EnergyRepository is required for getReadings');
+    }
+    return this.repository.getEnergyReadings(limit, offset, from, to);
   }
 
   /**
@@ -246,22 +251,50 @@ export class EnergyService {
    * @param from - Start timestamp (Unix seconds)
    * @param to - End timestamp (Unix seconds)
    * @returns Promise resolving to array of EnergyReading
+   * @throws Error if repository is not provided
    */
   async getReadingsForRange(from: number, to: number): Promise<EnergyReading[]> {
-    return getEnergyReadingsForRange(from, to);
+    if (!this.repository) {
+      throw new Error('EnergyRepository is required for getReadingsForRange');
+    }
+    return this.repository.getEnergyReadingsForRange(from, to);
   }
 }
 
-// Singleton instance
+/**
+ * Factory function to create an EnergyService instance.
+ * @param repository - Optional EnergyRepository instance (required for methods that access the database)
+ * @returns EnergyService instance
+ */
+export function createEnergyService(repository?: EnergyRepository): EnergyService {
+  return new EnergyService(repository);
+}
+
+/**
+ * Factory function to create a client-safe EnergyService instance.
+ * This instance does not require a repository since it only uses pure business logic methods.
+ * @returns EnergyService instance (without database access)
+ */
+export function createClientEnergyService(): EnergyService {
+  return new EnergyService();
+}
+
+// Singleton instance for backward compatibility (deprecated - use createEnergyService instead)
 let energyServiceInstance: EnergyService | null = null;
 
 /**
  * Gets the singleton instance of EnergyService.
+ * @deprecated Use createEnergyService() instead for dependency injection
  * @returns EnergyService instance
  */
 export function getEnergyService(): EnergyService {
   if (!energyServiceInstance) {
-    energyServiceInstance = new EnergyService();
+    // Import here to avoid circular dependencies
+    const { getPrismaClient } = require('@/lib/db');
+    const { createEnergyRepository } = require('@/lib/repositories/energy-repository');
+    const prisma = getPrismaClient();
+    const repository = createEnergyRepository(prisma);
+    energyServiceInstance = new EnergyService(repository);
   }
   return energyServiceInstance;
 }

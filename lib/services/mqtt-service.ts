@@ -1,6 +1,6 @@
 import mqtt, { type MqttClient, type IClientOptions } from 'mqtt';
 import type { EnergyData } from '@/types/energy';
-import { insertEnergyReading } from '@/lib/db';
+import type { EnergyRepository } from '@/lib/repositories/energy-repository';
 
 type MqttClientFactory = (url: string, options?: IClientOptions) => MqttClient;
 
@@ -19,17 +19,20 @@ export class MqttService {
   private mqttUrl: string;
   private clientFactory: MqttClientFactory;
   private isShuttingDown: boolean = false;
+  private repository: EnergyRepository | null = null;
 
   constructor(
     mqttUrl?: string,
     topicCcp?: string,
     topicUtc?: string,
-    clientFactory?: MqttClientFactory
+    clientFactory?: MqttClientFactory,
+    repository?: EnergyRepository
   ) {
     this.mqttUrl = mqttUrl || process.env.MQTT_URL || '';
     this.topicCcp = topicCcp || process.env.MQTT_TOPIC_CCP || 'go-eController/916791/ccp';
     this.topicUtc = topicUtc || process.env.MQTT_TOPIC_UTC || 'go-eController/916791/utc';
     this.clientFactory = clientFactory || mqtt.connect;
+    this.repository = repository || null;
 
     if (!this.mqttUrl) {
       throw new Error(
@@ -227,13 +230,14 @@ export class MqttService {
 
           // Persist to database if we have a valid timestamp
           if (
+            this.repository &&
             this.currentEnergyData.timestamp !== null &&
             typeof this.currentEnergyData.timestamp === 'number' &&
             !isNaN(this.currentEnergyData.timestamp) &&
             this.currentEnergyData.timestamp !== this.lastHistoryTimestamp
           ) {
             // Persist to database
-            insertEnergyReading(this.currentEnergyData).catch((error) => {
+            this.repository.insertEnergyReading(this.currentEnergyData).catch((error) => {
               console.error('Error persisting energy reading:', error);
             });
             this.lastHistoryTimestamp = this.currentEnergyData.timestamp;
@@ -253,6 +257,7 @@ export class MqttService {
 
           // Persist to database if we have complete energy data
           if (
+            this.repository &&
             timestamp !== this.lastHistoryTimestamp &&
             (this.currentEnergyData.home !== 0 ||
               this.currentEnergyData.grid !== 0 ||
@@ -260,7 +265,7 @@ export class MqttService {
               this.currentEnergyData.solar !== 0)
           ) {
             // Persist to database
-            insertEnergyReading(this.currentEnergyData).catch((error) => {
+            this.repository.insertEnergyReading(this.currentEnergyData).catch((error) => {
               console.error('Error persisting energy reading:', error);
             });
             this.lastHistoryTimestamp = timestamp;
@@ -300,12 +305,40 @@ export class MqttService {
   }
 }
 
-// Singleton instance for use in API routes
+/**
+ * Factory function to create an MqttService instance.
+ * @param mqttUrl - Optional MQTT broker URL (defaults to MQTT_URL env var)
+ * @param topicCcp - Optional CCP topic (defaults to MQTT_TOPIC_CCP env var)
+ * @param topicUtc - Optional UTC topic (defaults to MQTT_TOPIC_UTC env var)
+ * @param clientFactory - Optional MQTT client factory function
+ * @param repository - Optional EnergyRepository for persisting readings
+ * @returns MqttService instance
+ */
+export function createMqttService(
+  mqttUrl?: string,
+  topicCcp?: string,
+  topicUtc?: string,
+  clientFactory?: MqttClientFactory,
+  repository?: EnergyRepository
+): MqttService {
+  return new MqttService(mqttUrl, topicCcp, topicUtc, clientFactory, repository);
+}
+
+// Singleton instance for backward compatibility (deprecated - use createMqttService instead)
 let mqttServiceInstance: MqttService | null = null;
 
+/**
+ * Gets the singleton instance of MqttService.
+ * @deprecated Use createMqttService() instead for dependency injection
+ */
 export function getMqttService(): MqttService {
   if (!mqttServiceInstance) {
-    mqttServiceInstance = new MqttService();
+    // Import here to avoid circular dependencies
+    const { getPrismaClient } = require('@/lib/db');
+    const { createEnergyRepository } = require('@/lib/repositories/energy-repository');
+    const prisma = getPrismaClient();
+    const repository = createEnergyRepository(prisma);
+    mqttServiceInstance = new MqttService(undefined, undefined, undefined, undefined, repository);
   }
   return mqttServiceInstance;
 }

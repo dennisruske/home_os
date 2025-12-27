@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnergyService } from '@/lib/services/energy-service';
+import { createServiceContainer } from '@/lib/services/service-container';
 
 /**
  * Handles aggregated energy data requests for grid, car, or solar energy types.
@@ -42,7 +42,7 @@ export async function handleAggregatedEnergyRequest(
     }
 
     // Fetch readings for the time range via service layer
-    const energyService = getEnergyService();
+    const { energyService } = createServiceContainer();
     const readings = await energyService.getReadingsForRange(startTimestamp, endTimestamp);
 
     // Use EnergyService to aggregate data

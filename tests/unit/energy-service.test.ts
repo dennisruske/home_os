@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EnergyService, getEnergyService } from '@/lib/services/energy-service';
+import { EnergyService, createEnergyService } from '@/lib/services/energy-service';
 import type { EnergyReading, EnergySettings } from '@/types/energy';
 
 describe('EnergyService', () => {
   let service: EnergyService;
 
   beforeEach(() => {
-    service = new EnergyService();
+    // Create service without repository for methods that don't need it
+    service = createEnergyService();
   });
 
   describe('calculateConsumptionCost', () => {
@@ -310,12 +311,10 @@ describe('EnergyService', () => {
     });
   });
 
-  describe('getEnergyService (singleton)', () => {
-    it('should return the same instance on multiple calls', () => {
-      const instance1 = getEnergyService();
-      const instance2 = getEnergyService();
-
-      expect(instance1).toBe(instance2);
+  describe('createEnergyService', () => {
+    it('should create a new instance without repository', () => {
+      const instance = createEnergyService();
+      expect(instance).toBeInstanceOf(EnergyService);
     });
   });
 });

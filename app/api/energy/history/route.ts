@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnergyService } from '@/lib/services/energy-service';
+import { createServiceContainer } from '@/lib/services/service-container';
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Query database via service layer
-    const energyService = getEnergyService();
+    const { energyService } = createServiceContainer();
     const readings = await energyService.getReadings(limit, offset, from, to);
 
     return NextResponse.json({

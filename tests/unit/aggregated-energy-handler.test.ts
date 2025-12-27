@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 import { handleAggregatedEnergyRequest } from '@/lib/api/aggregated-energy-handler';
-import { getEnergyService } from '@/lib/services/energy-service';
+import { createServiceContainer } from '@/lib/services/service-container';
 import type { EnergyReading, AggregatedResponse, GridAggregatedResponse } from '@/types/energy';
 
-// Mock the energy service
-vi.mock('@/lib/services/energy-service');
+// Mock the service container
+vi.mock('@/lib/services/service-container');
 vi.mock('@/lib/energy-aggregation', () => ({
   getTimeframeBounds: vi.fn((timeframe: string) => {
     const now = new Date();
@@ -38,7 +38,9 @@ describe('handleAggregatedEnergyRequest', () => {
       getReadingsForRange: vi.fn().mockResolvedValue(mockReadings),
       aggregateEnergyData: vi.fn(),
     };
-    vi.mocked(getEnergyService).mockReturnValue(mockEnergyService as any);
+    vi.mocked(createServiceContainer).mockReturnValue({
+      energyService: mockEnergyService,
+    } as any);
   });
 
   function createMockRequest(url: string): NextRequest {

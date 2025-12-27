@@ -2,21 +2,22 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MqttService } from '@/lib/services/mqtt-service';
 import type { MqttClient } from 'mqtt';
 import type { EnergyData } from '@/types/energy';
-import * as db from '@/lib/db';
-
-// Mock the database module
-vi.mock('@/lib/db', () => ({
-  insertEnergyReading: vi.fn().mockResolvedValue(undefined),
-}));
+import type { EnergyRepository } from '@/lib/repositories/energy-repository';
 
 describe('MqttService', () => {
   let mockClient: Partial<MqttClient>;
   let mockClientFactory: (url: string, options?: any) => Partial<MqttClient>;
   let eventHandlers: Record<string, ((...args: any[]) => void)[]>;
+  let mockRepository: EnergyRepository;
 
   beforeEach(() => {
     // Reset event handlers
     eventHandlers = {};
+
+    // Create mock repository
+    mockRepository = {
+      insertEnergyReading: vi.fn().mockResolvedValue(undefined),
+    } as unknown as EnergyRepository;
 
     // Create mock client with event emitter behavior
     mockClient = {
@@ -60,7 +61,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         undefined,
         undefined,
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
       expect(service).toBeDefined();
     });
@@ -70,7 +72,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'custom/ccp',
         'custom/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
       expect(service).toBeDefined();
     });
@@ -81,7 +84,7 @@ describe('MqttService', () => {
       delete process.env.MQTT_URL;
 
       expect(() => {
-        new MqttService(undefined, undefined, undefined, mockClientFactory);
+        new MqttService(undefined, undefined, undefined, mockClientFactory, mockRepository);
       }).toThrow('MQTT_URL environment variable is not set');
 
       // Restore
@@ -97,7 +100,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       const client = service.connect();
@@ -115,7 +119,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       mockClient.connected = true;
@@ -131,7 +136,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -149,7 +155,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -170,7 +177,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -197,7 +205,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -223,7 +232,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -242,8 +252,8 @@ describe('MqttService', () => {
       // Wait for async operations
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(db.insertEnergyReading).toHaveBeenCalled();
-      const callArgs = (db.insertEnergyReading as any).mock.calls[0][0];
+      expect(mockRepository.insertEnergyReading).toHaveBeenCalled();
+      const callArgs = (mockRepository.insertEnergyReading as any).mock.calls[0][0];
       expect(callArgs.timestamp).toBe(Math.floor(new Date(timestampString).getTime() / 1000));
       expect(callArgs.home).toBe(1000);
       expect(callArgs.grid).toBe(2000);
@@ -256,7 +266,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -279,7 +290,7 @@ describe('MqttService', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Should only be called once
-      expect(db.insertEnergyReading).toHaveBeenCalledTimes(1);
+      expect(mockRepository.insertEnergyReading).toHaveBeenCalledTimes(1);
     });
 
     it('should handle invalid message formats gracefully', () => {
@@ -287,7 +298,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -306,7 +318,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -327,7 +340,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       const data1 = service.getCurrentData();
@@ -344,7 +358,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       const data = service.getCurrentData();
@@ -364,7 +379,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -378,7 +394,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       // Should not throw
@@ -392,7 +409,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       expect(service.isConnected()).toBe(false);
@@ -403,7 +421,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -419,7 +438,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         'test/ccp',
         'test/utc',
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();
@@ -440,7 +460,8 @@ describe('MqttService', () => {
         'mqtt://localhost:1883',
         undefined,
         undefined,
-        mockClientFactory
+        mockClientFactory,
+        mockRepository
       );
 
       service.connect();

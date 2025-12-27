@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useEnergyData } from '@/hooks/useEnergyData';
 import { useEnergySettings } from '@/hooks/useEnergySettings';
 import { useEnergyCostCalculations } from '@/hooks/useEnergyCostCalculations';
-import { getEnergyService } from '@/lib/services/energy-service';
+import { createClientEnergyService } from '@/lib/services/energy-service';
 import { TimeframeSelector, getTimeframeLabel, type Timeframe, type DisplayMode } from './energy-dashboard/TimeframeSelector';
 import { EnergyCard } from './energy-dashboard/EnergyCard';
 import { EnergyChart } from './energy-dashboard/EnergyChart';
@@ -19,8 +19,8 @@ export function EnergyDashboard() {
   // Fetch settings only when in cost mode
   const { settings, loading: settingsLoading } = useEnergySettings(displayMode);
 
-  // Get energy service instance for cost calculations
-  const energyService = getEnergyService();
+  // Get energy service instance for cost calculations (client-safe, no database access needed)
+  const energyService = createClientEnergyService();
 
   // Transform energy data and calculate costs/totals
   const {

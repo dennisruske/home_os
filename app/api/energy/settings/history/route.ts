@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getEnergySettingsService } from '@/lib/services/energy-settings-service';
+import { createServiceContainer } from '@/lib/services/service-container';
 
 export async function GET() {
   try {
-    const service = getEnergySettingsService();
-    const allSettings = await service.getAllSettings();
+    const { energySettingsService } = createServiceContainer();
+    const allSettings = await energySettingsService.getAllSettings();
     
     return NextResponse.json({
       settings: allSettings,

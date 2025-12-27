@@ -17,7 +17,7 @@ vi.mock('@/hooks/useEnergyCostCalculations', () => ({
 
 // Mock the energy service
 vi.mock('@/lib/services/energy-service', () => ({
-  getEnergyService: vi.fn(() => ({
+  createClientEnergyService: vi.fn(() => ({
     calculateConsumptionCost: vi.fn((kwh: number) => kwh * 0.2),
     calculateFeedInCost: vi.fn((kwh: number) => kwh * 0.1),
   })),

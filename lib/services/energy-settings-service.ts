@@ -1,16 +1,12 @@
-import { 
-  findActiveEnergySettings,
-  updateEnergySettingsEndDate,
-  createEnergySettings,
-  getAllEnergySettings
-} from '@/lib/db';
 import type { EnergySettings, ConsumingPricePeriod } from '@/types/energy';
+import type { EnergyRepository } from '@/lib/repositories/energy-repository';
 
 /**
  * Service for managing energy settings and price calculations.
  * Provides a clean abstraction layer for business logic related to energy pricing.
  */
 export class EnergySettingsService {
+  constructor(private repository: EnergyRepository) {}
   /**
    * Gets the active energy settings for a given timestamp.
    * If no timestamp is provided, returns settings for the current time.
@@ -21,7 +17,7 @@ export class EnergySettingsService {
   async getActiveSettings(timestamp?: number): Promise<EnergySettings | null> {
     // Business logic: default to current time if no timestamp provided
     const queryTime = timestamp ?? Math.floor(Date.now() / 1000);
-    return findActiveEnergySettings(queryTime);
+    return this.repository.findActiveEnergySettings(queryTime);
   }
 
   /**
@@ -106,24 +102,24 @@ export class EnergySettingsService {
     }
 
     // Business logic: Find the currently active settings (if any)
-    const activeSettings = await findActiveEnergySettings(now);
+    const activeSettings = await this.repository.findActiveEnergySettings(now);
 
     // Business logic: Handle period transitions
     if (activeSettings) {
       if (effectiveStartDate > now) {
         // New settings start in the future - end current period just before new one starts
         console.log('Ending current active settings period at:', effectiveStartDate);
-        await updateEnergySettingsEndDate(activeSettings.id, effectiveStartDate - 1);
+        await this.repository.updateEnergySettingsEndDate(activeSettings.id, effectiveStartDate - 1);
       } else {
         // New settings start now - end current period immediately
         console.log('Ending current active settings period now');
-        await updateEnergySettingsEndDate(activeSettings.id, now);
+        await this.repository.updateEnergySettingsEndDate(activeSettings.id, now);
       }
     }
 
     // Create new settings record
     console.log('Creating new settings record with start_date:', effectiveStartDate);
-    const created = await createEnergySettings(
+    const created = await this.repository.createEnergySettings(
       producingPrice,
       consumingPeriods,
       effectiveStartDate,
@@ -141,21 +137,37 @@ export class EnergySettingsService {
    * @returns Promise resolving to array of all EnergySettings
    */
   async getAllSettings(): Promise<EnergySettings[]> {
-    return getAllEnergySettings();
+    return this.repository.getAllEnergySettings();
   }
 }
 
-// Singleton instance
+/**
+ * Factory function to create an EnergySettingsService instance.
+ * @param repository - EnergyRepository instance (required)
+ * @returns EnergySettingsService instance
+ */
+export function createEnergySettingsService(repository: EnergyRepository): EnergySettingsService {
+  return new EnergySettingsService(repository);
+}
+
+// Singleton instance for backward compatibility (deprecated - use createEnergySettingsService instead)
 let energySettingsServiceInstance: EnergySettingsService | null = null;
 
 /**
  * Gets the singleton instance of EnergySettingsService.
+ * @deprecated Use createEnergySettingsService() instead for dependency injection
  * @returns EnergySettingsService instance
  */
 export function getEnergySettingsService(): EnergySettingsService {
   if (!energySettingsServiceInstance) {
-    energySettingsServiceInstance = new EnergySettingsService();
+    // Import here to avoid circular dependencies
+    const { getPrismaClient } = require('@/lib/db');
+    const { createEnergyRepository } = require('@/lib/repositories/energy-repository');
+    const prisma = getPrismaClient();
+    const repository = createEnergyRepository(prisma);
+    energySettingsServiceInstance = new EnergySettingsService(repository);
   }
   return energySettingsServiceInstance;
 }
+
 
