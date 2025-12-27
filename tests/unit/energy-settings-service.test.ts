@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EnergySettingsService, getEnergySettingsService } from '@/lib/services/energy-settings-service';
-import { getEnergySettings } from '@/lib/db';
+import { findActiveEnergySettings } from '@/lib/db';
 import type { EnergySettings } from '@/types/energy';
 
 // Mock the db module
 vi.mock('@/lib/db', () => ({
-  getEnergySettings: vi.fn(),
+  findActiveEnergySettings: vi.fn(),
 }));
 
 describe('EnergySettingsService', () => {
@@ -35,12 +35,15 @@ describe('EnergySettingsService', () => {
         ],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      // Mock Date.now() to return a fixed timestamp
+      const mockNow = 1234567890;
+      vi.spyOn(Date, 'now').mockReturnValue(mockNow * 1000);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const result = await service.getActiveSettings();
 
       expect(result).toEqual(mockSettings);
-      expect(getEnergySettings).toHaveBeenCalledWith(undefined);
+      expect(findActiveEnergySettings).toHaveBeenCalledWith(mockNow);
     });
 
     it('should return settings for specific timestamp', async () => {
@@ -54,20 +57,23 @@ describe('EnergySettingsService', () => {
         consuming_periods: [],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const result = await service.getActiveSettings(timestamp);
 
       expect(result).toEqual(mockSettings);
-      expect(getEnergySettings).toHaveBeenCalledWith(timestamp);
+      expect(findActiveEnergySettings).toHaveBeenCalledWith(timestamp);
     });
 
     it('should return null when no settings found', async () => {
-      vi.mocked(getEnergySettings).mockResolvedValue(null);
+      const mockNow = 1234567890;
+      vi.spyOn(Date, 'now').mockReturnValue(mockNow * 1000);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(null);
 
       const result = await service.getActiveSettings();
 
       expect(result).toBeNull();
+      expect(findActiveEnergySettings).toHaveBeenCalledWith(mockNow);
     });
   });
 
@@ -82,13 +88,13 @@ describe('EnergySettingsService', () => {
         consuming_periods: [],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const timestamp = 1000000;
       const result = await service.calculatePriceAt(timestamp, 'producing');
 
       expect(result).toBe(0.12);
-      expect(getEnergySettings).toHaveBeenCalledWith(timestamp);
+      expect(findActiveEnergySettings).toHaveBeenCalledWith(timestamp);
     });
 
     it('should return consuming price based on time of day', async () => {
@@ -118,7 +124,7 @@ describe('EnergySettingsService', () => {
         ],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const result = await service.calculatePriceAt(timestamp, 'consuming');
 
@@ -152,7 +158,7 @@ describe('EnergySettingsService', () => {
         ],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const result = await service.calculatePriceAt(timestamp, 'consuming');
 
@@ -178,7 +184,7 @@ describe('EnergySettingsService', () => {
         ],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const result = await service.calculatePriceAt(timestamp, 'consuming');
 
@@ -186,7 +192,7 @@ describe('EnergySettingsService', () => {
     });
 
     it('should return null when no settings found', async () => {
-      vi.mocked(getEnergySettings).mockResolvedValue(null);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(null);
 
       const timestamp = 1000000;
       const result = await service.calculatePriceAt(timestamp, 'consuming');
@@ -204,7 +210,7 @@ describe('EnergySettingsService', () => {
         consuming_periods: [],
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const timestamp = 1000000;
       const result = await service.calculatePriceAt(timestamp, 'consuming');
@@ -221,7 +227,7 @@ describe('EnergySettingsService', () => {
         updated_at: 1000000,
       };
 
-      vi.mocked(getEnergySettings).mockResolvedValue(mockSettings);
+      vi.mocked(findActiveEnergySettings).mockResolvedValue(mockSettings);
 
       const timestamp = 1000000;
       const result = await service.calculatePriceAt(timestamp, 'consuming');

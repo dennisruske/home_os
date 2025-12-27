@@ -116,62 +116,6 @@ export async function getEnergyReadingsForRange(
   }
 }
 
-export async function getEnergySettings(timestamp?: number): Promise<EnergySettings | null> {
-  try {
-    const queryTime = timestamp ?? Math.floor(Date.now() / 1000);
-    
-    const settings = await prisma.energySettings.findFirst({
-      where: {
-        AND: [
-          { start_date: { lte: queryTime } },
-          {
-            OR: [
-              { end_date: null },
-              { end_date: { gt: queryTime } },
-            ],
-          },
-        ],
-      },
-      include: {
-        consuming_periods: {
-          orderBy: {
-            start_time: 'asc',
-          },
-        },
-      },
-      orderBy: {
-        start_date: 'desc',
-      },
-    });
-
-    if (!settings) {
-      return null;
-    }
-
-    return {
-      id: settings.id,
-      producing_price: settings.producing_price,
-      start_date: settings.start_date,
-      end_date: settings.end_date,
-      updated_at: settings.updated_at,
-      consuming_periods: settings.consuming_periods.map((period) => ({
-        id: period.id,
-        energy_settings_id: period.energy_settings_id,
-        start_time: period.start_time,
-        end_time: period.end_time,
-        price: period.price,
-      })),
-    };
-  } catch (error) {
-    console.error('Error querying energy settings:', error);
-    throw error;
-  }
-}
-
-export async function getEnergySettingsAt(timestamp: number): Promise<EnergySettings | null> {
-  return getEnergySettings(timestamp);
-}
-
 export async function getAllEnergySettings(): Promise<EnergySettings[]> {
   try {
     const settings = await prisma.energySettings.findMany({
@@ -335,16 +279,3 @@ export async function findActiveEnergySettings(timestamp: number): Promise<Energ
   }
 }
 
-/**
- * @deprecated Use EnergySettingsService.updateSettings instead.
- * This function is kept for backward compatibility but will be removed in a future version.
- */
-export async function updateEnergySettings(
-  producingPrice: number,
-  consumingPeriods: ConsumingPricePeriod[],
-  startDate?: number
-): Promise<EnergySettings> {
-  const { getEnergySettingsService } = await import('@/lib/services/energy-settings-service');
-  const service = getEnergySettingsService();
-  return service.updateSettings(producingPrice, consumingPeriods, startDate);
-}

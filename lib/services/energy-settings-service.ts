@@ -1,5 +1,4 @@
 import { 
-  getEnergySettings, 
   findActiveEnergySettings,
   updateEnergySettingsEndDate,
   createEnergySettings,
@@ -20,7 +19,9 @@ export class EnergySettingsService {
    * @returns Promise resolving to EnergySettings or null if no settings found
    */
   async getActiveSettings(timestamp?: number): Promise<EnergySettings | null> {
-    return getEnergySettings(timestamp);
+    // Business logic: default to current time if no timestamp provided
+    const queryTime = timestamp ?? Math.floor(Date.now() / 1000);
+    return findActiveEnergySettings(queryTime);
   }
 
   /**
