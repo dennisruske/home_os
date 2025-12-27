@@ -63,7 +63,7 @@ export function useEnergyData(timeframe: Timeframe): UseEnergyDataReturn {
       setSolar((prev) => ({ ...prev, loading: true, error: null }));
 
       // Fetch grid data (consumption and feed-in)
-      const gridPromise = fetch(`/api/energy/aggregated?timeframe=${timeframe}`)
+      const gridPromise = fetch(`/api/energy/aggregated/grid?timeframe=${timeframe}`)
         .then(async (response) => {
           if (!response.ok) {
             throw new Error('Failed to fetch aggregated data');

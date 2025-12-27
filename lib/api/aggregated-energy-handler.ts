@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnergyService } from '@/lib/services/energy-service';
 
-export async function GET(request: NextRequest) {
+/**
+ * Handles aggregated energy data requests for grid, car, or solar energy types.
+ * Extracts common request processing logic from route handlers.
+ *
+ * @param request - Next.js request object
+ * @param type - Energy type: 'grid', 'car', or 'solar'
+ * @returns NextResponse with aggregated energy data or error
+ */
+export async function handleAggregatedEnergyRequest(
+  request: NextRequest,
+  type: 'grid' | 'car' | 'solar'
+): Promise<NextResponse> {
   try {
     const searchParams = request.nextUrl.searchParams;
     const timeframe = searchParams.get('timeframe') || 'day';
@@ -35,13 +46,13 @@ export async function GET(request: NextRequest) {
     const readings = await energyService.getReadingsForRange(startTimestamp, endTimestamp);
 
     // Use EnergyService to aggregate data
-    const result = energyService.aggregateEnergyData(readings, timeframe, 'grid');
+    const result = energyService.aggregateEnergyData(readings, timeframe, type);
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error aggregating energy data:', error);
+    console.error(`Error aggregating ${type} energy data:`, error);
     return NextResponse.json(
-      { error: 'Failed to aggregate energy data' },
+      { error: `Failed to aggregate ${type} energy data` },
       { status: 500 }
     );
   }
