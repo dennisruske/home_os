@@ -78,15 +78,71 @@ export class MqttService {
       this.client = null;
     }
 
+    // Validate and normalize the MQTT URL
+    // The mqtt library internally uses decodeURIComponent which can fail if the URL
+    // contains unencoded special characters. We need to ensure proper encoding.
+    let normalizedUrl = this.mqttUrl;
+    try {
+      // Try to parse the URL to validate it
+      const url = new URL(this.mqttUrl);
+      
+      // Always reconstruct the URL with properly encoded credentials
+      // This ensures that any special characters are properly encoded
+      const protocol = url.protocol;
+      const hostname = url.hostname;
+      const port = url.port;
+      const pathname = url.pathname;
+      const search = url.search;
+      
+      // Encode username and password if they exist
+      // Note: new URL() automatically decodes them, so we just need to re-encode
+      const encodedUsername = url.username ? encodeURIComponent(url.username) : '';
+      const encodedPassword = url.password ? encodeURIComponent(url.password) : '';
+      
+      // Reconstruct URL with properly encoded credentials
+      if (encodedUsername && encodedPassword) {
+        normalizedUrl = `${protocol}//${encodedUsername}:${encodedPassword}@${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+      } else if (encodedUsername) {
+        normalizedUrl = `${protocol}//${encodedUsername}@${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+      } else {
+        normalizedUrl = `${protocol}//${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+      }
+    } catch (urlError) {
+      // If URL parsing fails, the URL is malformed
+      console.error('Error parsing MQTT URL:', urlError);
+      console.error('MQTT URL format should be: mqtt://[username:password@]hostname[:port][/path]');
+      console.error('Current MQTT_URL value (sanitized):', this.mqttUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@'));
+      throw new Error(
+        `Invalid MQTT URL format. Please check your MQTT_URL environment variable. ` +
+        `Expected format: mqtt://[username:password@]hostname[:port][/path]. ` +
+        `Special characters in username/password must be URL-encoded.`
+      );
+    }
+
     // Log connection attempt without exposing credentials
-    const logUrl = this.mqttUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+    const logUrl = normalizedUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
     console.log(`Connecting to MQTT broker at ${logUrl}...`);
 
-    const client = this.clientFactory(this.mqttUrl, {
-      reconnectPeriod: 5000, // Reconnect every 5 seconds
-      connectTimeout: 10000, // 10 second connection timeout
-      keepalive: 60,
-    });
+    let client: MqttClient;
+    try {
+      client = this.clientFactory(normalizedUrl, {
+        reconnectPeriod: 5000, // Reconnect every 5 seconds
+        connectTimeout: 10000, // 10 second connection timeout
+        keepalive: 60,
+      });
+    } catch (error) {
+      console.error('Error creating MQTT client:', error);
+      if (error instanceof URIError) {
+        console.error('URI Error: The MQTT URL contains invalid characters.');
+        console.error('Please ensure your MQTT_URL is properly formatted.');
+        console.error('Example formats:');
+        console.error('  - mqtt://localhost:1883');
+        console.error('  - mqtt://username:password@broker.example.com:1883');
+        console.error('  - mqtts://username:password@broker.example.com:8883');
+        console.error('Note: Special characters in username/password must be URL-encoded.');
+      }
+      throw error;
+    }
 
     client.on('connect', () => {
       console.log('Connected to MQTT broker');
