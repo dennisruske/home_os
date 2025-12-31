@@ -1,4 +1,4 @@
-import type { AggregatedDataPoint } from '@/types/energy';
+import type { AggregatedDataPoint, EnergyReading } from '@/types/energy';
 
 /**
  * Calculates the start and end timestamps for a given timeframe.
@@ -274,6 +274,75 @@ export function calculateTotalEnergy<T>(
   });
 
   // Trapezoidal integration over all readings
+  let totalEnergyWh = 0;
+
+  for (let i = 0; i < sortedReadings.length - 1; i++) {
+    const power1 = extractor(sortedReadings[i]); // watts
+    const power2 = extractor(sortedReadings[i + 1]); // watts
+    const timestamp1 = (sortedReadings[i] as any).timestamp as number;
+    const timestamp2 = (sortedReadings[i + 1] as any).timestamp as number;
+    const timeDelta = timestamp2 - timestamp1; // seconds
+
+    // Average power * time = energy (watt-seconds)
+    const energyWs = ((power1 + power2) / 2) * timeDelta;
+    totalEnergyWh += energyWs / 3600; // Convert to watt-hours
+  }
+
+  const kwh = totalEnergyWh / 1000; // Convert to kilowatt-hours
+  return kwh;
+}
+
+/**
+ * Integrates energy over a partial bucket (subset of readings within bucket boundaries).
+ * Used for high-precision integration of partial first/last buckets when querying across bucket boundaries.
+ * @param readings - Array of readings to integrate
+ * @param bucketStart - Start timestamp of the bucket (Unix seconds)
+ * @param bucketEnd - End timestamp of the bucket (Unix seconds)
+ * @param extractor - Function to extract the numeric value from each reading
+ * @param filterFn - Optional function to filter readings by their extracted value
+ * @returns Total energy in kWh for the partial bucket
+ */
+export function integratePartialBucket<T>(
+  readings: T[],
+  bucketStart: number,
+  bucketEnd: number,
+  extractor: (reading: T) => number,
+  filterFn?: (value: number) => boolean
+): number {
+  if (readings.length < 2) {
+    return 0;
+  }
+
+  // Filter readings if filter function is provided
+  const filteredReadings = filterFn
+    ? readings.filter((r) => {
+        const value = extractor(r);
+        return filterFn(value);
+      })
+    : readings;
+
+  if (filteredReadings.length < 2) {
+    return 0;
+  }
+
+  // Filter readings to only those within bucket boundaries
+  const readingsInBucket = filteredReadings.filter((r) => {
+    const timestamp = (r as any).timestamp as number;
+    return timestamp >= bucketStart && timestamp < bucketEnd;
+  });
+
+  if (readingsInBucket.length < 2) {
+    return 0;
+  }
+
+  // Sort readings by timestamp
+  const sortedReadings = [...readingsInBucket].sort((a, b) => {
+    const timestampA = (a as any).timestamp as number;
+    const timestampB = (b as any).timestamp as number;
+    return timestampA - timestampB;
+  });
+
+  // Trapezoidal integration over readings in the partial bucket
   let totalEnergyWh = 0;
 
   for (let i = 0; i < sortedReadings.length - 1; i++) {

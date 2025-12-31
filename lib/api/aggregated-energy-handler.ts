@@ -41,12 +41,9 @@ export async function handleAggregatedEnergyRequest(
       endTimestamp = bounds.end;
     }
 
-    // Fetch readings for the time range via service layer
+    // Use EnergyService to get aggregated data (with caching and bucket optimization)
     const { energyService } = createServiceContainer();
-    const readings = await energyService.getReadingsForRange(startTimestamp, endTimestamp);
-
-    // Use EnergyService to aggregate data
-    const result = energyService.aggregateEnergyData(readings, timeframe, type);
+    const result = await energyService.getAggregatedEnergyData(startTimestamp, endTimestamp, timeframe, type);
 
     return NextResponse.json(result);
   } catch (error) {

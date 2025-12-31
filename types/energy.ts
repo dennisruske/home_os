@@ -67,3 +67,23 @@ export interface GridAggregatedResponse {
   feedIn: AggregatedResponse;
 }
 
+export interface EnergyBucket {
+  bucket_start: number;
+  bucket_end: number;
+  home_kwh: number;
+  grid_kwh: number;
+  car_kwh: number;
+  solar_kwh: number;
+  readings_count: number;
+  first_timestamp: number;
+  last_timestamp: number;
+  first_home: number;
+  first_grid: number;
+  first_car: number;
+  first_solar: number;
+  last_home: number;
+  last_grid: number;
+  last_car: number;
+  last_solar: number;
+}
+

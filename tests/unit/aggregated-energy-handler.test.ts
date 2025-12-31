@@ -37,6 +37,7 @@ describe('handleAggregatedEnergyRequest', () => {
     mockEnergyService = {
       getReadingsForRange: vi.fn().mockResolvedValue(mockReadings),
       aggregateEnergyData: vi.fn(),
+      getAggregatedEnergyData: vi.fn(),
     };
     vi.mocked(createServiceContainer).mockReturnValue({
       energyService: mockEnergyService,
@@ -53,7 +54,7 @@ describe('handleAggregatedEnergyRequest', () => {
         consumption: { data: [], total: 100 },
         feedIn: { data: [], total: 50 },
       };
-      mockEnergyService.aggregateEnergyData.mockReturnValue(mockGridResponse);
+      mockEnergyService.getAggregatedEnergyData.mockResolvedValue(mockGridResponse);
 
       const request = createMockRequest('/api/energy/aggregated/grid');
       const response = await handleAggregatedEnergyRequest(request, 'grid');
@@ -61,8 +62,9 @@ describe('handleAggregatedEnergyRequest', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data).toEqual(mockGridResponse);
-      expect(mockEnergyService.aggregateEnergyData).toHaveBeenCalledWith(
-        mockReadings,
+      expect(mockEnergyService.getAggregatedEnergyData).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
         'day',
         'grid'
       );
@@ -73,7 +75,7 @@ describe('handleAggregatedEnergyRequest', () => {
         consumption: { data: [], total: 200 },
         feedIn: { data: [], total: 100 },
       };
-      mockEnergyService.aggregateEnergyData.mockReturnValue(mockGridResponse);
+      mockEnergyService.getAggregatedEnergyData.mockResolvedValue(mockGridResponse);
 
       const request = createMockRequest('/api/energy/aggregated/grid?timeframe=week');
       const response = await handleAggregatedEnergyRequest(request, 'grid');
@@ -81,8 +83,9 @@ describe('handleAggregatedEnergyRequest', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data).toEqual(mockGridResponse);
-      expect(mockEnergyService.aggregateEnergyData).toHaveBeenCalledWith(
-        mockReadings,
+      expect(mockEnergyService.getAggregatedEnergyData).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
         'week',
         'grid'
       );
@@ -93,7 +96,7 @@ describe('handleAggregatedEnergyRequest', () => {
         consumption: { data: [], total: 150 },
         feedIn: { data: [], total: 75 },
       };
-      mockEnergyService.aggregateEnergyData.mockReturnValue(mockGridResponse);
+      mockEnergyService.getAggregatedEnergyData.mockResolvedValue(mockGridResponse);
 
       const start = 1704067200;
       const end = 1704153600;
@@ -103,9 +106,9 @@ describe('handleAggregatedEnergyRequest', () => {
       const response = await handleAggregatedEnergyRequest(request, 'grid');
 
       expect(response.status).toBe(200);
-      expect(mockEnergyService.getReadingsForRange).toHaveBeenCalledWith(start, end);
-      expect(mockEnergyService.aggregateEnergyData).toHaveBeenCalledWith(
-        mockReadings,
+      expect(mockEnergyService.getAggregatedEnergyData).toHaveBeenCalledWith(
+        start,
+        end,
         'day',
         'grid'
       );
@@ -118,7 +121,7 @@ describe('handleAggregatedEnergyRequest', () => {
         data: [],
         total: 500,
       };
-      mockEnergyService.aggregateEnergyData.mockReturnValue(mockCarResponse);
+      mockEnergyService.getAggregatedEnergyData.mockResolvedValue(mockCarResponse);
 
       const request = createMockRequest('/api/energy/aggregated/car?timeframe=day');
       const response = await handleAggregatedEnergyRequest(request, 'car');
@@ -126,8 +129,9 @@ describe('handleAggregatedEnergyRequest', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data).toEqual(mockCarResponse);
-      expect(mockEnergyService.aggregateEnergyData).toHaveBeenCalledWith(
-        mockReadings,
+      expect(mockEnergyService.getAggregatedEnergyData).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
         'day',
         'car'
       );
@@ -140,7 +144,7 @@ describe('handleAggregatedEnergyRequest', () => {
         data: [],
         total: 3000,
       };
-      mockEnergyService.aggregateEnergyData.mockReturnValue(mockSolarResponse);
+      mockEnergyService.getAggregatedEnergyData.mockResolvedValue(mockSolarResponse);
 
       const request = createMockRequest('/api/energy/aggregated/solar?timeframe=month');
       const response = await handleAggregatedEnergyRequest(request, 'solar');
@@ -148,8 +152,9 @@ describe('handleAggregatedEnergyRequest', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data).toEqual(mockSolarResponse);
-      expect(mockEnergyService.aggregateEnergyData).toHaveBeenCalledWith(
-        mockReadings,
+      expect(mockEnergyService.getAggregatedEnergyData).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.any(Number),
         'month',
         'solar'
       );
@@ -158,7 +163,7 @@ describe('handleAggregatedEnergyRequest', () => {
 
   describe('error handling', () => {
     it('should return 500 error when service throws an error', async () => {
-      mockEnergyService.getReadingsForRange.mockRejectedValue(new Error('Database error'));
+      mockEnergyService.getAggregatedEnergyData.mockRejectedValue(new Error('Database error'));
 
       const request = createMockRequest('/api/energy/aggregated/grid');
       const response = await handleAggregatedEnergyRequest(request, 'grid');
@@ -169,9 +174,7 @@ describe('handleAggregatedEnergyRequest', () => {
     });
 
     it('should return 500 error when aggregation fails', async () => {
-      mockEnergyService.aggregateEnergyData.mockImplementation(() => {
-        throw new Error('Aggregation error');
-      });
+      mockEnergyService.getAggregatedEnergyData.mockRejectedValue(new Error('Aggregation error'));
 
       const request = createMockRequest('/api/energy/aggregated/car');
       const response = await handleAggregatedEnergyRequest(request, 'car');
@@ -182,7 +185,7 @@ describe('handleAggregatedEnergyRequest', () => {
     });
 
     it('should include type in error message', async () => {
-      mockEnergyService.getReadingsForRange.mockRejectedValue(new Error('Service error'));
+      mockEnergyService.getAggregatedEnergyData.mockRejectedValue(new Error('Service error'));
 
       const request = createMockRequest('/api/energy/aggregated/solar');
       const response = await handleAggregatedEnergyRequest(request, 'solar');

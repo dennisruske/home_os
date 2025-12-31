@@ -26,7 +26,6 @@ export function EnergyDashboard() {
   const {
     consumptionChartData,
     consumptionTotalValue,
-    feedInChartData,
     feedInTotalValue,
     carChartData,
     carTotalValue,
@@ -132,20 +131,6 @@ export function EnergyDashboard() {
           displayMode === 'cost' 
             ? 'Cost for energy consumed from the grid'
             : 'Energy consumed from the grid'
-        }
-      />
-
-      <EnergyChart
-        data={feedInChartData}
-        displayMode={displayMode}
-        timeframe={timeframe}
-        loading={feedIn.loading}
-        error={feedIn.error}
-        title="Grid Energy Feed-In Overview"
-        description={
-          displayMode === 'cost' 
-            ? 'Cost for energy fed back to the grid'
-            : 'Energy fed back to the grid'
         }
       />
     </div>

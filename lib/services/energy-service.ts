@@ -3,22 +3,30 @@ import type {
   EnergySettings, 
   AggregatedDataPoint,
   AggregatedResponse,
-  GridAggregatedResponse
+  GridAggregatedResponse,
+  EnergyBucket
 } from '@/types/energy';
 import {
   getTimeframeBounds,
   aggregateByHour,
   aggregateByDay,
   calculateTotalEnergy,
+  integratePartialBucket,
 } from '@/lib/energy-aggregation';
 import type { EnergyRepository } from '@/lib/repositories/energy-repository';
+import type { EnergyBucketRepository } from '@/lib/repositories/energy-bucket-repository';
+import type { Cache } from '@/lib/cache/cache-interface';
 
 /**
  * Service for energy cost calculations and data aggregation.
  * Provides business logic for calculating energy costs and aggregating energy data.
  */
 export class EnergyService {
-  constructor(private repository?: EnergyRepository) {}
+  constructor(
+    private repository?: EnergyRepository,
+    private bucketRepository?: EnergyBucketRepository,
+    private cache?: Cache
+  ) {}
   /**
    * Calculates the cost for energy consumption based on kWh, timestamp, and settings.
    * Uses time-of-day pricing periods to determine the appropriate price.
@@ -259,15 +267,189 @@ export class EnergyService {
     }
     return this.repository.getEnergyReadingsForRange(from, to);
   }
+
+  /**
+   * Gets aggregated energy data with caching and optimized bucket-based queries.
+   * Uses bucket table for large time ranges, raw table for small ranges, and cache for performance.
+   *
+   * @param from - Start timestamp (Unix seconds)
+   * @param to - End timestamp (Unix seconds)
+   * @param timeframe - Timeframe string: 'day', 'yesterday', 'week', or 'month' (used for aggregation granularity)
+   * @param type - Type of energy: 'grid', 'car', or 'solar'
+   * @returns Promise resolving to aggregated response
+   */
+  async getAggregatedEnergyData(
+    from: number,
+    to: number,
+    timeframe: string,
+    type: 'grid' | 'car' | 'solar'
+  ): Promise<AggregatedResponse | GridAggregatedResponse> {
+    // Generate cache key
+    const cacheKey = `energy:aggregated:${type}:${timeframe}:${from}:${to}`;
+
+    // Check cache first
+    if (this.cache) {
+      const cached = await this.cache.get<AggregatedResponse | GridAggregatedResponse>(cacheKey);
+      if (cached !== null) {
+        console.log("cached result found");
+        return cached;
+      }
+      console.log("no cached result found");
+    }
+
+    // Determine query strategy based on time range
+    const timeRangeSeconds = to - from;
+    const useBuckets = timeRangeSeconds >= 3600; // Use buckets for ranges >= 1 hour
+
+    let result: AggregatedResponse | GridAggregatedResponse;
+
+    if (useBuckets && this.bucketRepository && this.repository) {
+      // Use bucket table + partial integration for high precision
+      console.log("using bucket table + partial integration for high precision");
+      result = await this.aggregateEnergyDataFromBuckets(from, to, timeframe, type);
+    } else if (this.repository) {
+      // Use raw table for small ranges or when bucket repository is not available
+      console.log("using raw table for small ranges or when bucket repository is not available");
+      const readings = await this.repository.getEnergyReadingsForRange(from, to);
+      result = this.aggregateEnergyData(readings, timeframe, type);
+    } else {
+      throw new Error('EnergyRepository is required for getAggregatedEnergyData');
+    }
+
+    // Store in cache
+    if (this.cache) {
+      await this.cache.set(cacheKey, result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Aggregates energy data from buckets with high-precision partial bucket integration.
+   * @param from - Start timestamp (Unix seconds)
+   * @param to - End timestamp (Unix seconds)
+   * @param timeframe - Timeframe string
+   * @param type - Type of energy: 'grid', 'car', or 'solar'
+   * @returns Aggregated response
+   */
+  private async aggregateEnergyDataFromBuckets(
+    from: number,
+    to: number,
+    timeframe: string,
+    type: 'grid' | 'car' | 'solar'
+  ): Promise<AggregatedResponse | GridAggregatedResponse> {
+    if (!this.bucketRepository || !this.repository) {
+      throw new Error('Both bucketRepository and repository are required for bucket-based aggregation');
+    }
+
+    // Round timestamps to minute boundaries for bucket queries
+    const firstBucketStart = Math.floor(from / 60) * 60;
+    const lastBucketStart = Math.floor(to / 60) * 60;
+
+    // Determine if we need to integrate partial buckets
+    const needsPartialFirst = firstBucketStart < from;
+    const needsPartialLast = lastBucketStart < to;
+
+    // Get full buckets (from first full bucket to last full bucket)
+    const fullBucketStart = needsPartialFirst ? firstBucketStart + 60 : firstBucketStart;
+    const fullBucketEnd = needsPartialLast ? lastBucketStart : lastBucketStart + 60;
+
+    const buckets: EnergyBucket[] = [];
+    if (fullBucketStart < fullBucketEnd) {
+      if (timeframe === 'day' || timeframe === 'yesterday') {
+        // For hourly aggregation, use 1-minute buckets
+        buckets.push(...(await this.bucketRepository.getBucketsForRange(fullBucketStart, fullBucketEnd)));
+      } else {
+        // For daily aggregation, use hourly or daily materialized views if available
+        // For now, use 1-minute buckets (can be optimized later)
+        buckets.push(...(await this.bucketRepository.getBucketsForRange(fullBucketStart, fullBucketEnd)));
+      }
+    }
+
+    // Get partial bucket readings if needed
+    let partialFirstReadings: EnergyReading[] = [];
+    let partialLastReadings: EnergyReading[] = [];
+
+    if (needsPartialFirst) {
+      const readingBefore = await this.bucketRepository.getFirstReadingBefore(from);
+      const readingsInRange = await this.repository.getEnergyReadingsForRange(
+        Math.max(firstBucketStart, from - 300), // Include some readings before for integration
+        Math.min(firstBucketStart + 60, to)
+      );
+      if (readingBefore) {
+        partialFirstReadings = [readingBefore, ...readingsInRange];
+      } else {
+        partialFirstReadings = readingsInRange;
+      }
+    }
+
+    if (needsPartialLast && lastBucketStart !== firstBucketStart) {
+      partialLastReadings = await this.repository.getEnergyReadingsForRange(
+        lastBucketStart,
+        to
+      );
+      const readingAfter = await this.bucketRepository.getFirstReadingAfter(to);
+      if (readingAfter) {
+        partialLastReadings.push(readingAfter);
+      }
+    }
+
+    // Convert buckets to readings-like format for aggregation functions
+    // For now, use the existing aggregateEnergyData with combined data
+    // This is a simplified approach - can be optimized later to sum buckets directly
+    const allReadings: EnergyReading[] = [];
+
+    // Add partial first bucket readings
+    allReadings.push(...partialFirstReadings);
+
+    // Convert buckets to readings (using first/last values from buckets)
+    for (const bucket of buckets) {
+      // Create a reading from bucket's first values
+      allReadings.push({
+        id: 0, // Not used
+        timestamp: bucket.first_timestamp,
+        home: bucket.first_home,
+        grid: bucket.first_grid,
+        car: bucket.first_car,
+        solar: bucket.first_solar,
+        created_at: 0,
+      });
+      // Create a reading from bucket's last values
+      allReadings.push({
+        id: 0,
+        timestamp: bucket.last_timestamp,
+        home: bucket.last_home,
+        grid: bucket.last_grid,
+        car: bucket.last_car,
+        solar: bucket.last_solar,
+        created_at: 0,
+      });
+    }
+
+    // Add partial last bucket readings
+    allReadings.push(...partialLastReadings);
+
+    // Sort by timestamp
+    allReadings.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Use existing aggregation logic
+    return this.aggregateEnergyData(allReadings, timeframe, type);
+  }
 }
 
 /**
  * Factory function to create an EnergyService instance.
  * @param repository - Optional EnergyRepository instance (required for methods that access the database)
+ * @param bucketRepository - Optional EnergyBucketRepository instance (for optimized bucket queries)
+ * @param cache - Optional Cache instance (for caching aggregated results)
  * @returns EnergyService instance
  */
-export function createEnergyService(repository?: EnergyRepository): EnergyService {
-  return new EnergyService(repository);
+export function createEnergyService(
+  repository?: EnergyRepository,
+  bucketRepository?: EnergyBucketRepository,
+  cache?: Cache
+): EnergyService {
+  return new EnergyService(repository, bucketRepository, cache);
 }
 
 /**
