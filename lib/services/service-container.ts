@@ -3,7 +3,7 @@ import { createEnergyRepository } from '@/lib/repositories/energy-repository';
 import { createEnergyBucketRepository } from '@/lib/repositories/energy-bucket-repository';
 import { createEnergyService } from './energy-service';
 import { createEnergySettingsService } from './energy-settings-service';
-import { createMqttService } from './mqtt-service';
+import { createMqttService, MqttService } from './mqtt-service';
 import { createEnergyAggregationJob } from './energy-aggregation-job';
 import { getRedisClient } from '@/lib/cache/cache-client';
 import { createRedisCache } from '@/lib/cache/redis-cache';
@@ -15,6 +15,7 @@ import type { EnergyAggregationJob } from './energy-aggregation-job';
 import type { Cache } from '@/lib/cache/cache-interface';
 import { PrismaClient } from '@prisma/client';
 import { getGlobalMqttService } from '@/lib/mqtt-singleton';
+
 
 
 /**
