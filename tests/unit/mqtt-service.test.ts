@@ -107,6 +107,8 @@ describe('MqttService', () => {
       const client = service.connect();
 
       expect(mockClientFactory).toHaveBeenCalledWith('mqtt://localhost:1883', {
+        clientId: 'nextjs-mqtt-client',
+        clean: true,
         reconnectPeriod: 5000,
         connectTimeout: 10000,
         keepalive: 60,
@@ -146,8 +148,8 @@ describe('MqttService', () => {
       const connectHandlers = eventHandlers['connect'] || [];
       connectHandlers.forEach((handler) => handler());
 
-      expect(mockClient.subscribe).toHaveBeenCalledWith('test/ccp', expect.any(Function));
-      expect(mockClient.subscribe).toHaveBeenCalledWith('test/utc', expect.any(Function));
+      expect(mockClient.subscribe).toHaveBeenCalledWith('test/ccp');
+      expect(mockClient.subscribe).toHaveBeenCalledWith('test/utc');
     });
 
     it('should setup event handlers', () => {
@@ -224,7 +226,7 @@ describe('MqttService', () => {
       messageHandler('test/utc', Buffer.from(JSON.stringify(timestampString)));
 
       const currentData = service.getCurrentData();
-      expect(currentData.timestamp).toBe(Math.floor(new Date(timestampString).getTime() / 1000));
+      expect(currentData.timestamp).toBe(Math.floor(new Date(timestampString + 'Z').getTime() / 1000));
     });
 
     it('should persist to database when both timestamp and energy data are available', async () => {
@@ -254,7 +256,7 @@ describe('MqttService', () => {
 
       expect(mockRepository.insertEnergyReading).toHaveBeenCalled();
       const callArgs = (mockRepository.insertEnergyReading as any).mock.calls[0][0];
-      expect(callArgs.timestamp).toBe(Math.floor(new Date(timestampString).getTime() / 1000));
+      expect(callArgs.timestamp).toBe(Math.floor(new Date(timestampString + 'Z').getTime() / 1000));
       expect(callArgs.home).toBe(1000);
       expect(callArgs.grid).toBe(2000);
       expect(callArgs.car).toBe(3000);
