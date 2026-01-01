@@ -16,8 +16,6 @@ import type { Cache } from '@/lib/cache/cache-interface';
 import { PrismaClient } from '@prisma/client';
 import { getGlobalMqttService } from '@/lib/mqtt-singleton';
 
-
-
 /**
  * Container holding all service instances.
  * Used for dependency injection in API routes.
