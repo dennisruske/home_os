@@ -1,4 +1,5 @@
 import mqtt, { type MqttClient, type IClientOptions } from 'mqtt';
+import * as Sentry from '@sentry/nextjs';
 import type { EnergyData } from '@/types/energy';
 import type { EnergyRepository } from '@/lib/repositories/energy-repository';
 
@@ -14,6 +15,7 @@ export class MqttService {
     solar: 0,
   };
   private lastHistoryTimestamp: number | null = null;
+  private lastMessageTimestamp: number | null = null;
   private topicCcp: string;
   private topicUtc: string;
   private mqttUrl: string;
@@ -163,6 +165,17 @@ private ensureConnected(): void {
   }
 
   private handleMessage(topic: string, message: Buffer): void {
+    // Update last message timestamp
+    this.lastMessageTimestamp = Math.floor(Date.now() / 1000);
+
+    // Log message receipt as a breadcrumb for context
+    Sentry.addBreadcrumb({
+      category: 'mqtt',
+      message: `Received MQTT message on topic: ${topic}`,
+      level: 'info',
+      data: { topic, messageLength: message.length },
+    });
+
     try {
       if (topic === this.topicCcp) {
         // Parse energy data array: [Home, Grid, Car, Relais, Solar, ...]
@@ -185,6 +198,10 @@ private ensureConnected(): void {
             console.log("persisting energy reading:", this.currentEnergyData);
             this.repository.insertEnergyReading(this.currentEnergyData).catch((error) => {
               console.error('Error persisting energy reading:', error);
+              Sentry.captureException(error, {
+                tags: { topic: 'ccp', action: 'persist' },
+                extra: { energyData: this.currentEnergyData },
+              });
             });
             this.lastHistoryTimestamp = this.currentEnergyData.timestamp;
           }
@@ -214,6 +231,10 @@ private ensureConnected(): void {
             // Persist to database
             this.repository.insertEnergyReading(this.currentEnergyData).catch((error) => {
               console.error('Error persisting energy reading:', error);
+              Sentry.captureException(error, {
+                tags: { topic: 'utc', action: 'persist' },
+                extra: { energyData: this.currentEnergyData },
+              });
             });
             this.lastHistoryTimestamp = timestamp;
           }
@@ -221,6 +242,10 @@ private ensureConnected(): void {
       }
     } catch (error) {
       console.error('Error parsing MQTT message:', error);
+      Sentry.captureException(error, {
+        tags: { topic, action: 'parse' },
+        extra: { rawMessage: message.toString(), topic },
+      });
     }
   }
 
@@ -238,6 +263,10 @@ private ensureConnected(): void {
 
   isConnected(): boolean {
     return this.client !== null && this.client.connected;
+  }
+
+  getLastMessageTimestamp(): number | null {
+    return this.lastMessageTimestamp;
   }
 
   getCurrentData(): EnergyData {

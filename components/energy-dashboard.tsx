@@ -4,14 +4,19 @@ import { useState } from 'react';
 import { useEnergyData } from '@/hooks/useEnergyData';
 import { useEnergySettings } from '@/hooks/useEnergySettings';
 import { useEnergyCostCalculations } from '@/hooks/useEnergyCostCalculations';
+import { useMqttStatus } from '@/hooks/useMqttStatus';
 import { createClientEnergyService } from '@/lib/services/energy-service';
 import { TimeframeSelector, getTimeframeLabel, type Timeframe, type DisplayMode } from './energy-dashboard/TimeframeSelector';
 import { EnergyCard } from './energy-dashboard/EnergyCard';
 import { EnergyChart } from './energy-dashboard/EnergyChart';
+import { Button } from './ui/button';
 
 export function EnergyDashboard() {
   const [timeframe, setTimeframe] = useState<Timeframe>('day');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('kwh');
+
+  // Fetch MQTT status
+  const { isOnline, lastMessageTimestamp, loading: mqttLoading } = useMqttStatus();
 
   // Fetch all energy data
   const { consumption, feedIn, car, solar } = useEnergyData(timeframe);
@@ -51,6 +56,18 @@ export function EnergyDashboard() {
         onTimeframeChange={setTimeframe}
         onDisplayModeChange={setDisplayMode}
       />
+
+      {/* MQTT Status Button */}
+      <div className="mb-4 flex justify-end">
+        <Button
+          variant={isOnline ? "default" : "destructive"}
+          size="sm"
+          disabled={mqttLoading}
+          title={lastMessageTimestamp ? `Last message: ${new Date(lastMessageTimestamp * 1000).toLocaleString()}` : 'No messages received'}
+        >
+          Status: {mqttLoading ? 'Loading...' : (isOnline ? 'OK' : 'Offline')}
+        </Button>
+      </div>
 
       {/* Total Energy Cards - Side by Side */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
