@@ -1,20 +1,15 @@
 // src/instrumentation.ts
 import * as Sentry from '@sentry/nextjs';
 import { startCron } from "./lib/cron";
+console.log("test")
 
-export function register() {
-  // Initialize Sentry
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: 1.0,
-    integrations: [
-      new Sentry.Integrations.Http({ tracing: true }),
-      new Sentry.Integrations.Console(),
-      new Sentry.Integrations.OnUncaughtException(),
-      new Sentry.Integrations.OnUnhandledRejection(),
-    ],
-  });
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config");
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config");
+  }
 
   // ❗ Nur lokal / nicht auf Vercel
   if (
@@ -24,3 +19,5 @@ export function register() {
     startCron();
   }
 }
+
+export const onRequestError = Sentry.captureRequestError;
