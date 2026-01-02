@@ -11,6 +11,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # PostgreSQL service for database migration testing
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: home_os_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/home_os_test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +43,17 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # Database migration validation
+      - name: Deploy database migrations
+        run: pnpm prisma migrate deploy
+
+      - name: Validate schema is up-to-date
+        run: pnpm prisma migrate status
+
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
+
       - run: pnpm test:unit
       - run: pnpm build
 
