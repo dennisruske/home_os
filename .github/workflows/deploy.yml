@@ -1,0 +1,96 @@
+name: Deploy to Production
+
+permissions: write-all
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    
+    # Use GitHub Environment for production with protection rules
+    environment:
+      name: production
+      url: https://home-os.vercel.app
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Run migrations BEFORE deployment (best practice)
+      # Ensures migrations are backward compatible with current production code
+      - name: Run production database migrations
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: pnpm prisma migrate deploy
+
+      - name: Build application
+        run: pnpm build
+
+      # Deploy to Vercel Production
+      - name: Deploy to Vercel Production
+        id: deploy
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./
+
+      # Health check after deployment
+      - name: Wait for deployment to be ready
+        run: sleep 15
+
+      - name: Production health check
+        run: |
+          DEPLOY_URL="https://home-os.vercel.app"
+          echo "Checking health at: $DEPLOY_URL"
+          
+          # Retry up to 10 times for production
+          for i in {1..10}; do
+            if curl -f -s -o /dev/null "$DEPLOY_URL"; then
+              echo "✅ Production deployment is healthy"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          
+          echo "❌ Production deployment health check failed"
+          echo "🔄 Consider rolling back via Vercel dashboard"
+          exit 1
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "### 🎉 Production Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: https://home-os.vercel.app" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Rollback instructions
+        if: failure()
+        run: |
+          echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Rollback steps**:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Go to [Vercel Dashboard](https://vercel.com/dashboard)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Find the previous working deployment" >> $GITHUB_STEP_SUMMARY
+          echo "3. Click 'Promote to Production'" >> $GITHUB_STEP_SUMMARY
