@@ -54,3 +54,4 @@ ALTER TABLE "consuming_price_periods" ADD CONSTRAINT "consuming_price_periods_en
 
 
 
+

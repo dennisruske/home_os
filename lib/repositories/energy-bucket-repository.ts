@@ -333,3 +333,4 @@ export function createEnergyBucketRepository(prisma: PrismaClient): EnergyBucket
 }
 
 
+
