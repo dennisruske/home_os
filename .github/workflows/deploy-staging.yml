@@ -1,0 +1,83 @@
+name: Deploy to Staging
+
+permissions: write-all
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    
+    # Use GitHub Environment for staging
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.preview-url }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Run migrations BEFORE deployment
+      - name: Run staging database migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm prisma migrate deploy
+
+      - name: Build application
+        run: pnpm build
+
+      # Deploy to Vercel (preview/staging)
+      - name: Deploy to Vercel Staging
+        id: deploy
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Don't use --prod flag for staging (creates preview deployment)
+          vercel-args: '--env ENVIRONMENT=staging'
+          working-directory: ./
+
+      # Health check after deployment
+      - name: Wait for deployment to be ready
+        run: sleep 10
+
+      - name: Health check
+        run: |
+          DEPLOY_URL="${{ steps.deploy.outputs.preview-url }}"
+          echo "Checking health at: $DEPLOY_URL"
+          
+          # Retry up to 5 times
+          for i in {1..5}; do
+            if curl -f -s -o /dev/null "$DEPLOY_URL"; then
+              echo "✅ Staging deployment is healthy"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          
+          echo "❌ Staging deployment health check failed"
+          exit 1
+
+      - name: Deployment summary
+        run: |
+          echo "### 🚀 Staging Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: ${{ steps.deploy.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: Staging" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
