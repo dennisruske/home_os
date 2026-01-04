@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: ../../
+      dockerfile: apps/worker/Dockerfile
+    image: home_os-worker:latest
+    container_name: home_os-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    # network_mode: "host" # Uncomment if you need host networking, otherwise use default bridge
+    # If you have other services like mqtt or postgres in this compose file, link them here.
+    # For a standalone VPS deployment where services might be external or managed separately:
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Allows access to host machine if needed
