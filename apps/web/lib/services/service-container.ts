@@ -1,0 +1,59 @@
+import { getPrismaClient } from '@/lib/db';
+import { createEnergyRepository } from '@/lib/repositories/energy-repository';
+import { createEnergyBucketRepository } from '@/lib/repositories/energy-bucket-repository';
+import { createEnergyService } from './energy-service';
+import { createEnergySettingsService } from './energy-settings-service';
+import { getRedisClient } from '@/lib/cache/cache-client';
+import { createRedisCache } from '@/lib/cache/redis-cache';
+import type { EnergyRepository } from '@/lib/repositories/energy-repository';
+import type { EnergyBucketRepository } from '@/lib/repositories/energy-bucket-repository';
+import type { EnergyService } from './energy-service';
+import type { EnergySettingsService } from './energy-settings-service';
+import type { Cache } from '@/lib/cache/cache-interface';
+import { PrismaClient } from '@prisma/client';
+
+/**
+ * Container holding all service instances.
+ * Used for dependency injection in API routes.
+ */
+export interface ServiceContainer {
+  prisma: PrismaClient;
+  repository: EnergyRepository;
+  bucketRepository: EnergyBucketRepository;
+  cache: Cache | null;
+  energyService: EnergyService;
+  energySettingsService: EnergySettingsService;
+}
+
+/**
+ * Factory function to create a service container with all dependencies.
+ * This function wires up all services with their dependencies using dependency injection.
+ * 
+ * @returns ServiceContainer with all configured services
+ */
+export function createServiceContainer(): ServiceContainer {
+  const prisma = getPrismaClient();
+  const repository = createEnergyRepository(prisma);
+  const bucketRepository = createEnergyBucketRepository(prisma);
+
+  // Cache is optional - create only if REDIS_URL is configured
+  let cache: Cache | null = null;
+  try {
+    const redisClient = getRedisClient();
+    cache = createRedisCache(redisClient);
+  } catch (error) {
+    console.warn('Redis cache not available, continuing without cache:', error);
+  }
+
+  const energyService = createEnergyService(repository, bucketRepository, cache || undefined);
+  const energySettingsService = createEnergySettingsService(repository);
+
+  return {
+    prisma,
+    repository,
+    bucketRepository,
+    cache,
+    energyService,
+    energySettingsService,
+  };
+}

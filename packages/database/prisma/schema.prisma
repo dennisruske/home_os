@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EnergyReading {
+  id         Int   @id @default(autoincrement())
+  timestamp  Int
+  home       Float
+  grid       Float
+  car        Float
+  solar      Float
+  created_at Int   @default(0)
+
+  @@index([timestamp])
+  @@index([created_at])
+  @@map("energy_readings")
+}
+
+model EnergySettings {
+  id                Int                    @id @default(autoincrement())
+  producing_price   Float
+  start_date        Int
+  end_date          Int?
+  updated_at        Int                    @default(0)
+  consuming_periods ConsumingPricePeriod[]
+
+  @@index([start_date])
+  @@index([end_date])
+  @@map("energy_settings")
+}
+
+model ConsumingPricePeriod {
+  id                 Int            @id @default(autoincrement())
+  energy_settings_id Int
+  start_time         Int // Minutes since midnight (0-1439)
+  end_time           Int // Minutes since midnight (0-1439)
+  price              Float
+  energy_settings    EnergySettings @relation(fields: [energy_settings_id], references: [id], onDelete: Cascade)
+
+  @@index([energy_settings_id])
+  @@map("consuming_price_periods")
+}
+
+model EnergyBucket {
+  bucket_start    Int   @id
+  bucket_end      Int
+  home_kwh        Float
+  grid_kwh        Float
+  car_kwh         Float
+  solar_kwh       Float
+  readings_count  Int
+  first_timestamp Int
+  last_timestamp  Int
+  first_home      Float
+  first_grid      Float
+  first_car       Float
+  first_solar     Float
+  last_home       Float
+  last_grid       Float
+  last_car        Float
+  last_solar      Float
+
+  @@index([bucket_start])
+  @@map("energy_buckets")
+}
+
+model EnergyBucketAggregationJob {
+  id                       Int    @id @default(autoincrement())
+  last_processed_timestamp Int
+  last_run_at              Int
+  status                   String
+
+  @@map("energy_bucket_aggregation_jobs")
+}
