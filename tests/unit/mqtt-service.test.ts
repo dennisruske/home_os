@@ -171,6 +171,28 @@ describe('MqttService', () => {
       expect(mockClient.on).toHaveBeenCalledWith('reconnect', expect.any(Function));
       expect(mockClient.on).toHaveBeenCalledWith('end', expect.any(Function));
     });
+
+    it('should correctly handle special characters in password', () => {
+      // Password "Jg9k3?ffW!cOw" contains ? and ! which break URL parsing if not encoded
+      const specialCharUrl = 'mqtt://prod_user:Jg9k3?ffW!cOw@82.165.138.184:1883';
+
+      const service = new MqttService(
+        specialCharUrl,
+        'test/ccp',
+        'test/utc',
+        mockClientFactory,
+        mockRepository
+      );
+
+      // Should not throw
+      expect(() => service.connect()).not.toThrow();
+
+      // Verify URL was properly encoded before being passed to client factory
+      // ? -> %3F, ! -> ! (encodeURIComponent does not encode !)
+      // Note: Implementation might re-construct URL, so we check the encoded components
+      const expectedUrl = 'mqtt://prod_user:Jg9k3%3FffW!cOw@82.165.138.184:1883';
+      expect(mockClientFactory).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
+    });
   });
 
   describe('message handling', () => {

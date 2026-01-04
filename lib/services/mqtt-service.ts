@@ -70,89 +70,110 @@ export class MqttService {
  * Ensures MQTT connection is established.
  * This method is SAFE against parallel calls.
  */
-private ensureConnected(): void {
-  // 🔒 WICHTIG: Existiert ein Client → sofort raus
-  if (this.client) {
-    return;
-  }
-
-  // ============================
-  // URL-Validierung (unverändert)
-  // ============================
-
-  let normalizedUrl = this.mqttUrl;
-  try {
-    const url = new URL(this.mqttUrl);
-
-    const protocol = url.protocol;
-    const hostname = url.hostname;
-    const port = url.port;
-    const pathname = url.pathname;
-    const search = url.search;
-
-    const encodedUsername = url.username ? encodeURIComponent(url.username) : '';
-    const encodedPassword = url.password ? encodeURIComponent(url.password) : '';
-
-    if (encodedUsername && encodedPassword) {
-      normalizedUrl = `${protocol}//${encodedUsername}:${encodedPassword}@${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
-    } else if (encodedUsername) {
-      normalizedUrl = `${protocol}//${encodedUsername}@${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
-    } else {
-      normalizedUrl = `${protocol}//${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+  private ensureConnected(): void {
+    // 🔒 WICHTIG: Existiert ein Client → sofort raus
+    if (this.client) {
+      return;
     }
-  } catch (error) {
-    console.error('Invalid MQTT URL:', error);
-    throw error;
+
+    // ============================
+    // URL-Validierung mit verbessertem Credential-Handling
+    // ============================
+
+    let normalizedUrl = this.mqttUrl;
+    try {
+      // Pre-encode credentials if they exist in the URL to handle special characters
+      // Pattern: protocol://username:password@host:port/path
+      const credentialMatch = this.mqttUrl.match(/^([^:]+):\/\/([^:]+):([^@]+)@(.+)$/);
+
+      if (credentialMatch) {
+        // URL has credentials - encode them before parsing
+        const [, protocol, username, password, rest] = credentialMatch;
+        const encodedUsername = encodeURIComponent(username);
+        const encodedPassword = encodeURIComponent(password);
+        const tempUrl = `${protocol}://${encodedUsername}:${encodedPassword}@${rest}`;
+
+        // Now parse the properly encoded URL
+        const url = new URL(tempUrl);
+        normalizedUrl = tempUrl;
+
+        console.log(`MQTT URL credentials encoded successfully`);
+      } else {
+        // No credentials or different format - parse normally
+        const url = new URL(this.mqttUrl);
+
+        const protocol = url.protocol;
+        const hostname = url.hostname;
+        const port = url.port;
+        const pathname = url.pathname;
+        const search = url.search;
+
+        // Double-encode if URL object already decoded them
+        const encodedUsername = url.username ? encodeURIComponent(decodeURIComponent(url.username)) : '';
+        const encodedPassword = url.password ? encodeURIComponent(decodeURIComponent(url.password)) : '';
+
+        if (encodedUsername && encodedPassword) {
+          normalizedUrl = `${protocol}//${encodedUsername}:${encodedPassword}@${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+        } else if (encodedUsername) {
+          normalizedUrl = `${protocol}//${encodedUsername}@${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+        } else {
+          normalizedUrl = `${protocol}//${hostname}${port ? `:${port}` : ''}${pathname}${search}`;
+        }
+      }
+    } catch (error) {
+      console.error('Invalid MQTT URL - please ensure credentials are URL-encoded:', error);
+      console.error('Example: mqtt://user:encoded%40pass@host:1883');
+      throw error;
+    }
+
+    const logUrl = normalizedUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+    console.log(`Creating MQTT client → ${logUrl}`);
+
+    // ============================
+    // Client-Erstellung (EINMAL)
+    // ============================
+
+    const client = this.clientFactory(normalizedUrl, {
+      clientId: 'nextjs-mqtt-client',
+      clean: true,
+      reconnectPeriod: 5000,
+      connectTimeout: 10000,
+      keepalive: 60,
+    });
+
+    client.on('connect', () => {
+      console.log('MQTT connected');
+      client.subscribe(this.topicCcp);
+      client.subscribe(this.topicUtc);
+    });
+
+    client.on('message', (topic, message) => {
+      this.handleMessage(topic, message);
+    });
+
+    client.on('error', (error) => {
+      console.error('MQTT error:', error);
+    });
+
+    client.on('close', () => {
+      console.log('MQTT connection closed');
+      // ❗ Client bleibt gesetzt → Reconnect erlaubt
+    });
+
+    client.on('offline', () => {
+      console.log('MQTT client offline');
+    });
+
+    client.on('reconnect', () => {
+      console.log('MQTT reconnecting...');
+    });
+
+    client.on('end', () => {
+      console.log('MQTT client ended');
+    });
+
+    this.client = client;
   }
-
-  const logUrl = normalizedUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
-  console.log(`Creating MQTT client → ${logUrl}`);
-
-  // ============================
-  // Client-Erstellung (EINMAL)
-  // ============================
-
-  const client = this.clientFactory(normalizedUrl, {
-    clientId: 'nextjs-mqtt-client',
-    clean: true,
-    reconnectPeriod: 5000,
-    connectTimeout: 10000,
-    keepalive: 60,
-  });
-
-  client.on('connect', () => {
-    console.log('MQTT connected');
-    client.subscribe(this.topicCcp);
-    client.subscribe(this.topicUtc);
-  });
-
-  client.on('message', (topic, message) => {
-    this.handleMessage(topic, message);
-  });
-
-  client.on('error', (error) => {
-    console.error('MQTT error:', error);
-  });
-
-  client.on('close', () => {
-    console.log('MQTT connection closed');
-    // ❗ Client bleibt gesetzt → Reconnect erlaubt
-  });
-
-  client.on('offline', () => {
-    console.log('MQTT client offline');
-  });
-
-  client.on('reconnect', () => {
-    console.log('MQTT reconnecting...');
-  });
-
-  client.on('end', () => {
-    console.log('MQTT client ended');
-  });
-
-  this.client = client;
-}
 
   /**
    * Explicitly connect to MQTT broker. 
@@ -211,7 +232,7 @@ private ensureConnected(): void {
         const timestampString = JSON.parse(message.toString()) as string;
 
         // Convert string to Unix timestamp in seconds -- string is not ISO 8601, so we need to add "Z" to make it UTC
-        const date = new Date(timestampString+"Z");
+        const date = new Date(timestampString + "Z");
 
         if (isNaN(date.getTime())) {
           console.error('Invalid UTC timestamp format:', timestampString);
