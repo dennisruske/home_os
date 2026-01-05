@@ -51,7 +51,8 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           # Don't use --prod flag for staging (creates preview deployment)
           vercel-args: '--env ENVIRONMENT=staging'
-          working-directory: ./apps/web
+          vercel-args: '--env ENVIRONMENT=staging'
+          working-directory: ./
 
       # Health check after deployment
       - name: Wait for deployment to be ready
