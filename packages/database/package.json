@@ -8,7 +8,8 @@
         "dev": "tsc --watch",
         "db:generate": "prisma generate",
         "db:push": "prisma db push",
-        "db:studio": "prisma studio"
+        "db:studio": "prisma studio",
+        "db:migrate:deploy": "prisma migrate deploy"
     },
     "dependencies": {
         "@prisma/client": "^6.0.0"
