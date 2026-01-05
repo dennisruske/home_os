@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: ../../
+      dockerfile: apps/worker/Dockerfile
+    image: ghcr.io/dennisruske/home_os-worker:latest
+    container_name: home_os-worker
+    # No restart policy for dev usually, or "on-failure"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

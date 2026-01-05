@@ -2,10 +2,7 @@ version: '3.8'
 
 services:
   worker:
-    build:
-      context: ../../
-      dockerfile: apps/worker/Dockerfile
-    image: home_os-worker:latest
+    image: ghcr.io/dennisruske/home_os-worker:latest
     container_name: home_os-worker
     restart: unless-stopped
     env_file:
