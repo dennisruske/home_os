@@ -26,14 +26,15 @@ WORKDIR /app
 COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/out/full/ .
+
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Build the project
-COPY --from=builder /app/out/full/ .
-
 # Generate Prisma Client
 RUN pnpm turbo db:generate --filter=worker...
+
+RUN ls -la packages/database/prisma
 
 # Check if there is a turbo.json in the pruned output, if not copy it from root
 # usually prune handles this, but sometimes explicit copy is safer if prune misses config
