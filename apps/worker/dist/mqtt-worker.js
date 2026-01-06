@@ -53,10 +53,11 @@ class MqttWorker {
         this.lastMessageTimestamp = null;
         this.isShuttingDown = false;
         this.repository = repository;
-        this.mqttUrl = mqttUrl || process.env.MQTT_URL || '';
+        this.mqttUrl = (mqttUrl || process.env.MQTT_URL || '').trim().replace(/^['"]|['"]$/g, '');
         this.topicCcp = topicCcp || process.env.MQTT_TOPIC_CCP || 'go-eController/916791/ccp';
         this.topicUtc = topicUtc || process.env.MQTT_TOPIC_UTC || 'go-eController/916791/utc';
         this.clientFactory = clientFactory || mqtt_1.default.connect;
+        console.log('MQTT CONNECT PARAM:', mqttUrl);
         if (!this.mqttUrl) {
             throw new Error('MQTT_URL environment variable is not set. ' +
                 'Please set MQTT_URL to your MQTT broker URL (e.g., mqtt://localhost:1883 or mqtt://username:password@broker.example.com:1883)');
@@ -83,6 +84,7 @@ class MqttWorker {
             console.error('Invalid MQTT URL:', error);
             throw error;
         }
+        console.log("NORMALES MQTT URL: ", normalizedUrl);
         const logUrl = normalizedUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
         console.log(`Creating MQTT client → ${logUrl}`);
         const client = this.clientFactory(normalizedUrl, {

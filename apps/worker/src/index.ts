@@ -5,7 +5,6 @@ import { createEnergyRepository } from '@repo/core';
 import { MqttWorker } from './mqtt-worker';
 import { EnergyAggregationJob } from './jobs/aggregation';
 
-// Load environment variables
 dotenv.config();
 
 async function main() {

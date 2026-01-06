@@ -1,68 +1,55 @@
-############################################
-# Base
-############################################
 FROM node:20-alpine AS base
-
-# pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-
 ############################################
-# Builder – prune Monorepo
+# BUILDER
 ############################################
 FROM base AS builder
 WORKDIR /app
 
-# Turbo für prune
 RUN npm install -g turbo
-
-# Gesamtes Monorepo kopieren
 COPY . .
-
-# Workspace für worker isolieren
 RUN turbo prune --scope=worker --docker
 
 ############################################
-# Installer – deps + build
+# INSTALLER
 ############################################
 FROM base AS installer
 WORKDIR /app
 
-# Nur minimale Metadaten (cache-freundlich)
-COPY .gitignore .gitignore
+# Metadaten + Lockfile
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 
-# Dependencies installieren
-RUN pnpm install --frozen-lockfile
+# Enable hoisting to ensure all dependencies are in root node_modules
+RUN echo "shamefully-hoist=true" > .npmrc
 
-# Vollständigen pruned Source kopieren
+# Dependencies OHNE postinstall
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Vollständigen Code (inkl. prisma schema)
 COPY --from=builder /app/out/full/ .
 
-# Prisma Client (falls vorhanden)
-RUN pnpm turbo db:generate --filter=worker...
+# Prisma Client für ALLE Workspaces generieren
+RUN pnpm --filter @repo/database exec prisma generate
 
-# Worker bauen
+# Danach bauen
 RUN pnpm turbo build --filter=worker...
 
-# 🔑 PRODUKTIONS-LAYOUT ERZEUGEN (wichtig!)
-RUN pnpm deploy --filter=worker --prod /app/deploy
-
 ############################################
-# Runner – minimal & clean
+# RUNNER
 ############################################
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Non-root User
-RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
+# non-root user
+RUN addgroup -g 1001 nodejs && adduser -u 1001 -G nodejs -S nodejs
 USER nodejs
 
-# Nur das, was zur Laufzeit nötig ist
-COPY --from=installer /app/deploy/node_modules ./node_modules
+# Runtime-Files
 COPY --from=installer /app/apps/worker/dist ./apps/worker/dist
 COPY --from=installer /app/apps/worker/package.json ./apps/worker/package.json
+COPY --from=installer /app/node_modules ./node_modules
+COPY --from=installer /app/packages ./packages
 
 CMD ["node", "apps/worker/dist/index.js"]

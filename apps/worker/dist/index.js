@@ -9,7 +9,6 @@ const database_1 = require("@repo/database");
 const core_1 = require("@repo/core");
 const mqtt_worker_1 = require("./mqtt-worker");
 const aggregation_1 = require("./jobs/aggregation");
-// Load environment variables
 dotenv_1.default.config();
 async function main() {
     console.log('Starting Home OS Worker...');

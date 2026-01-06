@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: home_os-postgres-dev
+    environment:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: devdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - .docker-data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: home_os-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - .docker-data/redis:/data
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: home_os-mosquitto-dev
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - .docker-data/mosquitto/config:/mosquitto/config
+      - .docker-data/mosquitto/data:/mosquitto/data
+      - .docker-data/mosquitto/log:/mosquitto/log
+    # Note: For initial setup, we'll use a simple config that allows anonymous access
+    # You might want to customize mosquitto.conf later.
+    command: mosquitto -c /mosquitto-no-auth.conf
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "echo 'listener 1883
+
+          allow_anonymous true' > /mosquitto-no-auth.conf && /usr/sbin/mosquitto -c /mosquitto-no-auth.conf"
+      ]
+    restart: unless-stopped

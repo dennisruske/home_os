@@ -31,10 +31,12 @@ export class MqttWorker {
         clientFactory?: MqttClientFactory
     ) {
         this.repository = repository;
-        this.mqttUrl = mqttUrl || process.env.MQTT_URL || '';
+        this.mqttUrl = (mqttUrl || process.env.MQTT_URL || '').trim().replace(/^['"]|['"]$/g, '');
         this.topicCcp = topicCcp || process.env.MQTT_TOPIC_CCP || 'go-eController/916791/ccp';
         this.topicUtc = topicUtc || process.env.MQTT_TOPIC_UTC || 'go-eController/916791/utc';
         this.clientFactory = clientFactory || mqtt.connect;
+
+        console.log('MQTT CONNECT PARAM:', mqttUrl);
 
         if (!this.mqttUrl) {
             throw new Error(
@@ -67,6 +69,7 @@ export class MqttWorker {
             throw error;
         }
 
+        console.log("NORMALES MQTT URL: ", normalizedUrl);
         const logUrl = normalizedUrl.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
         console.log(`Creating MQTT client → ${logUrl}`);
 
