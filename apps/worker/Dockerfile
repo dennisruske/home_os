@@ -1,66 +1,68 @@
+############################################
+# Base
+############################################
 FROM node:20-alpine AS base
 
-# Install pnpm through corepack or npm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
-# The following is a workaround for some corepack issues in certain environments
-# ensuring we have the correct pnpm version available
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
+############################################
+# Builder – prune Monorepo
+############################################
 FROM base AS builder
-# Set working directory
 WORKDIR /app
-# Install turbo globaly to use the prune command
-# You can also use "npx turbo" but installing it is often faster/cleaner in docker
+
+# Turbo für prune
 RUN npm install -g turbo
+
+# Gesamtes Monorepo kopieren
 COPY . .
-# Prune the workspace for the worker app
+
+# Workspace für worker isolieren
 RUN turbo prune --scope=worker --docker
 
-# Add lockfile and package.json's of isolated subworkspace
+############################################
+# Installer – deps + build
+############################################
 FROM base AS installer
 WORKDIR /app
 
-# First install dependencies (as they change less often)
+# Nur minimale Metadaten (cache-freundlich)
 COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=builder /app/out/full/ .
 
-# Install dependencies
+# Dependencies installieren
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma Client
+# Vollständigen pruned Source kopieren
+COPY --from=builder /app/out/full/ .
+
+# Prisma Client (falls vorhanden)
 RUN pnpm turbo db:generate --filter=worker...
 
-RUN ls -la packages/database/prisma
-
-# Check if there is a turbo.json in the pruned output, if not copy it from root
-# usually prune handles this, but sometimes explicit copy is safer if prune misses config
-# We rely on what prune gave us in /out/full
+# Worker bauen
 RUN pnpm turbo build --filter=worker...
 
-FROM base AS runner
+# 🔑 PRODUKTIONS-LAYOUT ERZEUGEN (wichtig!)
+RUN pnpm deploy --filter=worker --prod /app/deploy
+
+############################################
+# Runner – minimal & clean
+############################################
+FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Don't run as root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
+# Non-root User
+RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
 USER nodejs
 
-COPY --from=installer /app/apps/worker/package.json .
-COPY --from=installer --chown=nodejs:nodejs /app/apps/worker/dist ./apps/worker/dist
-COPY --from=installer --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=installer --chown=nodejs:nodejs /app/packages ./packages
-# We also need the workspace dependencies if they are not bundled.
-# By default, pnpm installs dependencies in root node_modules.
-# However, for production we might want to ensure we have everything accessable.
-# If we used a bundler like esbuild/webpack, we'd just copy the bundle.
-# Since `tsc` is used (based on package.json "build": "tsc"), we need node_modules at runtime.
-
-# IMPORTANT: In a monorepo with pnpm, node_modules structure can be complex.
-# Copying the root node_modules is the safest bet for a simple "tsc" build.
-# For strictly isolated builds we might want to deploy differently, but this is robust.
+# Nur das, was zur Laufzeit nötig ist
+COPY --from=installer /app/deploy/node_modules ./node_modules
+COPY --from=installer /app/apps/worker/dist ./apps/worker/dist
+COPY --from=installer /app/apps/worker/package.json ./apps/worker/package.json
 
 CMD ["node", "apps/worker/dist/index.js"]
