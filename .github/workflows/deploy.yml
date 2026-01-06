@@ -36,7 +36,7 @@ jobs:
       - name: Run production database migrations
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-        run: pnpm prisma migrate deploy
+        run: pnpm --filter @repo/database db:migrate:deploy
 
       - name: Build application
         run: pnpm build
